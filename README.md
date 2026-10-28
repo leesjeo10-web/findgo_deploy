@@ -1,6 +1,6 @@
-# my-app
+# Finder (찾Go)
 
-React + Vite 프로젝트
+학교 분실물·습득물을 올리고 검색하는 교내 분실물 서비스의 프론트엔드 (React + Vite)
 
 ## Render에 배포하기
 
