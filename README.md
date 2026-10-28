@@ -9,7 +9,7 @@
 ### Blueprint로 배포
 
 1. Render 대시보드에서 **New → Blueprint**를 선택한다.
-2. `webisnoteasy/Finder_` 저장소의 `main` 브랜치를 연결한다.
+2. `webisnoteasy/finder` 저장소의 `main` 브랜치를 연결한다.
 3. 저장소 루트의 `render.yaml` 설정으로 배포한다.
 
 `main`에 푸시하면 자동으로 다시 빌드한다. `/login`, `/home`, `/items/1` 같은 경로는
