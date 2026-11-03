@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "회원 인증", description = "회원가입, 내 정보, CSRF 토큰")
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor
+@RequiredArgsConstructor // 생성자 자동 생성 (final 붙여진거)
 public class AuthController {
     private final AuthService auth;
 
@@ -27,26 +27,36 @@ public class AuthController {
             @NotBlank @Size(max = 40) String name,
             @Schema(description = "비밀번호. 8~64자", example = "example-password", accessMode = Schema.AccessMode.WRITE_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
             @NotNull @Size(min = 8, max = 64) String password) {}
-    public record CsrfResponse(
+    /*
+    NotNull - null : X / **( ""," " 빈 문자열 허용)
+    NotBlank - null,""," " : X / **(문자열 전용)
+    */
+    // 토큰
+    public record CsrfResponse( //record - 데이터 전달 객체(DTO) 생성
             @Schema(description = "변경 요청에 추가할 헤더 이름", example = "X-CSRF-TOKEN") String headerName,
             @Schema(description = "서버에서 발급된 토큰. 로그인·로그아웃 후 다시 조회하세요.") String token) {}
 
     @Operation(summary = "CSRF 토큰 조회", description = "회원가입·로그인·로그아웃을 포함한 모든 변경 요청 전에 호출하세요. 반환된 headerName 이름으로 token을 전송합니다. 로그인·로그아웃 후 다시 조회하세요.")
-    @GetMapping("/csrf")
+    @GetMapping("/csrf") // 토큰 정보 프론트에 전달
     public CsrfResponse csrf(CsrfToken token) {
         return new CsrfResponse(token.getHeaderName(), token.getToken());
     }
 
+    // 회원가입
     @Operation(summary = "회원가입", description = "이메일·이름·비밀번호로 가입합니다. 이메일은 소문자로 저장하며 중복 시 409입니다. 가입 후 별도로 로그인해야 합니다. 이메일 소유 인증은 하지 않습니다. CSRF 토큰이 필요합니다.")
-    @PostMapping("/signup")
-    @ResponseStatus(HttpStatus.CREATED)
+    @PostMapping("/signup") //
+    @ResponseStatus(HttpStatus.CREATED) //가입 성공 시 create 상태코드 전송 (201)
     public MemberResponse signup(@Valid @RequestBody SignupRequest request) {
-        return auth.signup(request.email(), request.name(), request.password());
+        //Valid - DTO 조건 검사
+        //SignupRequest - 프론트 회원가입 정보 DTO
+        return auth.signup(request.email(), request.name(), request.password()); // 서비스에 정보 전달 - 회원가입
     }
+
 
     @Operation(summary = "내 회원 정보 조회", description = "로그인 세션이 필요합니다. 비밀번호 및 비밀번호 해시는 반환하지 않습니다. 로그인하지 않았으면 401입니다.")
     @GetMapping("/me")
     public MemberResponse me(@Parameter(hidden = true) Authentication authentication) {
-        return MemberResponse.from(auth.current(authentication));
+        //@Parameter(hidden = true) - Swagger에 입력항목에서 삭제
+        return MemberResponse.from(auth.current(authentication));//authentication에 맞는 회원 MemberResponse 정보 조회
     }
 }

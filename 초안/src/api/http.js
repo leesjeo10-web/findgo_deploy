@@ -2,10 +2,12 @@ import axios from 'axios';
 export const isDemo = import.meta.env.VITE_USE_MOCK === 'true' ||
   (import.meta.env.VITE_USE_MOCK !== 'false' && !import.meta.env.VITE_API_BASE_URL);
 export const http = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api', timeout: 15000, withCredentials: true });
-let accessToken = null;
-export function setAccessToken(token) { accessToken = token; }
-http.interceptors.request.use(config => {
-  if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
+// Session cookies authenticate requests; fetch a CSRF token for every mutation.
+http.interceptors.request.use(async config => {
+  if (!['get', 'head', 'options'].includes((config.method || 'get').toLowerCase())) {
+    const { data } = await http.get('/auth/csrf');
+    config.headers[data.headerName] = data.token;
+  }
   return config;
 });
 http.interceptors.response.use(response => response, error => {

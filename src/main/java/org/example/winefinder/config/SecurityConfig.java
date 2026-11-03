@@ -10,7 +10,9 @@ import org.springframework.http.HttpMethod;
 
 @Configuration
 public class SecurityConfig {
-    @Bean
+    @Bean // <- Spring Securit 객체가 사용할 수 있도록 설정
+    //비밀번호 검사 도구 등록
+    //PBKDF2 방식으로 해시 처리, 로그인할 때 입력한 비밀번호가 맞는지 검사
     PasswordEncoder passwordEncoder() {
         // PBKDF2는 긴 UTF-8 비밀번호도 잘리지 않으며 사용자마다 무작위 salt를 사용합니다.
         return new org.springframework.security.crypto.password.DelegatingPasswordEncoder("pbkdf2@SpringSecurity_v5_8",
@@ -19,6 +21,8 @@ public class SecurityConfig {
     }
 
     @Bean
+    //로그인할 회원 찾기
+    //입력한 이메일로 DB에서 회원을 찾고, 이메일·저장된 비밀번호 해시·USER 권한을 Spring Security에 전달.
     UserDetailsService userDetailsService(MemberRepository members) {
         return email -> members.findByEmail(AuthService.normalizeEmail(email))
                 .map(m -> User.withUsername(m.getEmail()).password(m.getPasswordHash()).roles("USER").build())
@@ -26,6 +30,7 @@ public class SecurityConfig {
     }
 
     @Bean
+    //요청별 보안 규칙
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http.cors(cors -> {})
                 .authorizeHttpRequests(r -> r

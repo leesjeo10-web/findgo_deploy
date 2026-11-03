@@ -15,21 +15,39 @@ function assertOwner(item, userId) {
   if (!item) throw new Error('물건을 찾을 수 없어요.');
   if (item.ownerId !== userId) throw new Error('직접 등록한 물건만 변경할 수 있어요.');
 }
-function formData(values) {
-  const data = new FormData();
-  Object.entries(values).forEach(([key, value]) => { if (key !== 'image' && key !== 'imageFile' && value != null) data.append(key, value); });
-  if (values.imageFile) data.append('image', values.imageFile);
-  return data;
+function fromServer(item) {
+  return { ...item, type: item.type.toLowerCase(),
+    status: item.status === 'RESOLVED' ? 'returned' : item.type === 'FOUND' ? 'stored' : 'searching',
+    ownerId: item.userId, place: item.location, storagePlace: item.storageLocation,
+    date: item.lostFoundAt, image: item.imageUrl };
+}
+async function itemBody(values) {
+  let imageUrl = values.image || null;
+  if (values.imageFile) {
+    const data = new FormData();
+    // The preview is already resized and converted to JPEG, including WEBP inputs.
+    const file = values.image?.startsWith('data:image/jpeg')
+      ? await (await fetch(values.image)).blob() : values.imageFile;
+    data.append('file', file, 'photo.jpg');
+    imageUrl = (await http.post('/images', data)).data.imageUrl;
+  }
+  return { type: values.type.toUpperCase(), name: values.name, description: values.description,
+    status: values.status === 'returned' ? 'RESOLVED' : 'OPEN', location: values.place,
+    storageLocation: values.type === 'found' ? values.storagePlace : '',
+    lostFoundAt: values.date, imageUrl };
 }
 // REST contracts are documented in README.md. Demo data never goes to the API.
 export const authApi = {
+  async me() { return (await http.get('/auth/me')).data; },
   async login(values) {
     if (isDemo) return { user: { ...demoUser, email: values.email }, accessToken: 'demo-session' };
-    return (await http.post('/auth/login', values)).data;
+    await http.post('/auth/login', new URLSearchParams({ email: values.email, password: values.password }));
+    return { user: (await http.get('/auth/me')).data };
   },
   async signup(values) {
     if (isDemo) return { user: { ...demoUser, name: values.name, email: values.email }, accessToken: 'demo-session' };
-    return (await http.post('/auth/signup', values)).data;
+    await http.post('/auth/signup', values);
+    return authApi.login(values);
   },
   async logout() { if (!isDemo) await http.post('/auth/logout'); },
 };
@@ -37,7 +55,7 @@ export const itemsApi = {
   async list() {
     if (isDemo) return readItems();
     const data = (await http.get('/items')).data;
-    return Array.isArray(data) ? data : data.items;
+    return (Array.isArray(data) ? data : data.content).map(fromServer);
   },
   async get(id) {
     if (isDemo) {
@@ -45,17 +63,17 @@ export const itemsApi = {
       if (!item) throw new Error('물건을 찾을 수 없어요.');
       return item;
     }
-    return (await http.get(`/items/${encodeURIComponent(id)}`)).data;
+    return fromServer((await http.get(`/items/${encodeURIComponent(id)}`)).data);
   },
   async create(values, user) {
-    if (!isDemo) return (await http.post('/items', formData(values))).data;
+    if (!isDemo) return fromServer((await http.post('/items', await itemBody(values))).data);
     const { imageFile: _file, ...fields } = values;
     const item = { ...fields, id: crypto.randomUUID(), createdAt: new Date().toISOString(), ownerId: user.id, ownerName: user.name };
     writeItems([item, ...readItems()]);
     return item;
   },
   async update(id, values, user) {
-    if (!isDemo) return (await http.patch(`/items/${encodeURIComponent(id)}`, formData(values))).data;
+    if (!isDemo) return fromServer((await http.put(`/items/${encodeURIComponent(id)}`, await itemBody(values))).data);
     const items = readItems();
     assertOwner(items.find(item => String(item.id) === id), user.id);
     const { imageFile: _file, ...fields } = values;
