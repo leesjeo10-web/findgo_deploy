@@ -47,19 +47,19 @@ public class ItemController {
     @Operation(summary = "물품 상세 조회", description = "토큰이 필요합니다. 작성자 이름(userName)과 휴대전화(userPhone)를 함께 반환합니다. 관리자가 쓴 글은 교무실 번호(userOfficePhone)도 반환합니다. 존재하지 않는 ID는 404입니다.")
     @GetMapping("/{id}")
     public ItemDetailResponse findById(@PathVariable @Parameter(description = "물품 ID", example = "1") Long id) { return items.findById(id); }
-    @Operation(summary = "물품 전체 수정", description = "작성자만 수정할 수 있습니다. 선택 필드를 비우면 기존 값도 제거합니다. 다른 작성자의 글은 403입니다.")
+    @Operation(summary = "물품 전체 수정", description = "토큰이 필요하고 작성자만 수정할 수 있습니다(관리자도 403). 습득물은 storageLocation이 필수입니다. 선택 필드를 비우면 기존 값도 제거합니다. 다른 작성자의 글은 403입니다.")
     @PutMapping("/{id}")
     public ItemResponse update(@PathVariable @Parameter(description = "물품 ID", example = "1") Long id, @RequestBody ItemUpdateRequest request, @Parameter(hidden = true) Authentication user) {
         return items.update(id, request, auth.current(user).getId());
     }
     public record StatusRequest(
             @Schema(description = "OPEN=찾는 중, RESOLVED=해결 완료", example = "RESOLVED", requiredMode = Schema.RequiredMode.REQUIRED) ItemStatus status) {}
-    @Operation(summary = "해결 상태 변경", description = "작성자만 OPEN 또는 RESOLVED로 변경할 수 있습니다.")
+    @Operation(summary = "해결 상태 변경", description = "토큰이 필요하고 작성자만 OPEN 또는 RESOLVED로 변경할 수 있습니다(관리자도 403).")
     @PatchMapping("/{id}/status")
     public ItemResponse status(@PathVariable @Parameter(description = "물품 ID", example = "1") Long id, @RequestBody StatusRequest request, @Parameter(hidden = true) Authentication user) {
         return items.status(id, request.status(), auth.current(user).getId());
     }
-    @Operation(summary = "물품 삭제", description = "작성자 또는 관리자만 삭제할 수 있습니다. 성공하면 본문 없이 204를 반환합니다.")
+    @Operation(summary = "물품 삭제", description = "토큰이 필요하고 작성자 또는 관리자만 삭제할 수 있습니다. 첨부 사진도 함께 지웁니다. 성공하면 본문 없이 204를 반환합니다.")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable @Parameter(description = "물품 ID", example = "1") Long id, @Parameter(hidden = true) Authentication user) {
         var member = auth.current(user);

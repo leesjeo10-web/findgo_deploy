@@ -24,7 +24,8 @@ public class ImageController {
     public record ImageUploadResponse(
             @Schema(description = "물품 등록·수정 시 imageUrl에 넣을 사진 경로", example = "/api/images/123e4567-e89b-12d3-a456-426614174000.jpg") String imageUrl) {}
 
-    @Operation(summary = "물품 사진 업로드", description = "로그인이 필요합니다. file 필드에 JPG/PNG 사진 한 장을 전송하세요. 5MB·2천만 화소 이하를 허용하고 긴 변 최대 1600px JPEG로 저장합니다. 다른 형식은 받지 않습니다.")
+    @Operation(summary = "물품 사진 업로드", description = "토큰이 필요합니다. file 필드에 JPG/PNG 사진 한 장을 전송하세요. 5MB·2천만 화소 이하를 허용하고 긴 변 최대 1600px JPEG로 저장합니다. 다른 형식은 받지 않습니다. "
+            + "5MB 초과는 413, 처리할 수 없는 사진은 400입니다. 3시간 안에 물품에 연결하지 않으면 자동으로 지워집니다.")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public ImageUploadResponse upload(@RequestParam @Parameter(description = "5MB 이하의 JPG 또는 PNG 사진 한 장") MultipartFile file, @Parameter(hidden = true) Authentication user) {

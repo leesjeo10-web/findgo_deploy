@@ -22,15 +22,17 @@ Render에서 접근 가능한 외부 MySQL 호스트를 준비하고 네트워�
 | `DB_USERNAME` | DB 계정 |
 | `DB_PASSWORD` | DB 비밀번호 |
 | `FRONTEND_ORIGINS` | 프론트엔드 배포 origin, 예: `https://example.vercel.app` |
-| `COOKIE_SECURE` | `true` (HTTPS) |
+| `JWT_SECRET` | 32바이트 이상 무작위 문자열 (필수, 없으면 서버가 시작되지 않음) |
+| `JWT_EXPIRES_SECONDS` | 토큰 유효 시간(초), 생략하면 3600 |
+| `ADMIN_INITIAL_PASSWORD` | 첫 배포 때 admin 계정 비밀번호 (admin이 이미 있으면 무시) |
+| `UPLOAD_DIR` | 사진 저장 폴더 (영구 디스크를 쓸 때 그 경로) |
 
 `PORT`는 Render가 자동 제공하므로 별도로 설정할 필요가 없습니다.
 
 ## 3. 프론트 연결 주의
 - API 기본 경로는 `/api`, Swagger는 `/swagger-ui/index.html`입니다.
-- 프론트 요청에 `credentials: 'include'`가 필요합니다.
-- **현재 세션 쿠키는 `SameSite=Lax`** 입니다. Vercel과 Render의 서로 다른 사이트 간 직접 호출에서는 브라우저가 세션 쿠키를 보내지 않을 수 있습니다.
-- 가장 간단한 해결책은 프론트엔드 도메인에서 `/api`를 백엔드로 프록시하는 **same-origin 구성**입니다. CORS origin만 등록한다고 세션 문제가 해결되지는 않습니다.
+- 로그인 응답의 `accessToken`을 `Authorization: Bearer {accessToken}` 헤더로 보냅니다. 쿠키를 쓰지 않으므로 Vercel과 Render처럼 서로 다른 사이트에서도 `FRONTEND_ORIGINS`만 맞으면 직접 호출할 수 있습니다.
+- 사진 조회도 토큰이 필요하므로 `<img src>` 대신 fetch로 받아 blob URL로 표시합니다. 자세한 내용은 [API.md](API.md)를 보세요.
 
 ## 4. 무료 플랜 주의
 - Render Free 인스턴스는 유휴 시 중지되고 다시 시작할 때 지연될 수 있습니다.
@@ -41,4 +43,5 @@ Render에서 접근 가능한 외부 MySQL 호스트를 준비하고 네트워�
 1. Render Logs에서 Docker 빌드와 Spring Boot 기동을 확인합니다.
 2. `https://<your-render-host>/v3/api-docs` 또는 `/swagger-ui/index.html`에 접속합니다.
 3. DB 접속 오류가 발생하면 `DB_URL`, 계정, TLS, 방화벽/허용 IP를 점검합니다.
-4. 실제 프론트에서 회원가입/로그인/로그아웃/물품 API를 테스트합니다.
+4. Swagger에서 `admin` 계정으로 로그인해 토큰을 받고, 학생 추가·물품 API를 테스트합니다.
+5. 첫 배포가 끝나 admin 계정이 생겼으면 `ADMIN_INITIAL_PASSWORD`는 지워도 됩니다.
