@@ -16,10 +16,9 @@ public class Item {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 기존 데이터는 소유자가 없으므로 조회만 가능합니다.
+    // 작성자(members.id). 등록할 때 정하고 바꾸지 않습니다.
+    @Column(nullable = false, updatable = false)
     private Long userId;
-
-    public void assignOwner(Long userId) { this.userId = userId; }
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -49,8 +48,9 @@ public class Item {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    public Item(ItemType type, String name, String description, ItemStatus status,
+    public Item(Long userId, ItemType type, String name, String description, ItemStatus status,
                 String location, String storageLocation, String imageUrl, LocalDate lostFoundAt) {
+        this.userId = userId;
         update(type, name, description, status, location, storageLocation, imageUrl, lostFoundAt);
     }
 

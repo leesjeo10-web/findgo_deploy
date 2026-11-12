@@ -7,11 +7,11 @@ import org.example.winefinder.item.entity.ItemStatus;
 import java.time.LocalDateTime;
 import org.example.winefinder.item.entity.Item;
 
-@Schema(description = "물품 상세 정보")
+@Schema(description = "물품 정보. 목록·등록·수정 응답에 쓰며 작성자 이름·전화번호는 없습니다.")
 public record ItemResponse(
         @Schema(description = "물품 ID. 서버에서 생성합니다.", example = "1", accessMode = Schema.AccessMode.READ_ONLY)
         Long id,
-        @Schema(description = "작성자 ID. 서버가 로그인 사용자로 지정합니다. 기존 데이터는 없을 수 있습니다.", example = "1", accessMode = Schema.AccessMode.READ_ONLY)
+        @Schema(description = "작성자 ID. 서버가 로그인 사용자로 지정합니다.", example = "1", accessMode = Schema.AccessMode.READ_ONLY)
         Long userId,
         @Schema(description = "물품 유형: LOST=분실물, FOUND=습득물", example = "FOUND")
         ItemType type,

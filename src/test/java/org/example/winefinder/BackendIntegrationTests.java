@@ -15,6 +15,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -48,6 +49,7 @@ class BackendIntegrationTests {
     @Autowired PasswordEncoder passwords;
     @Autowired JwtService jwt;
     @Autowired JwtEncoder encoder;
+    @Autowired JdbcTemplate jdbc;
     MockMvc mvc;
 
     @BeforeEach
@@ -103,7 +105,7 @@ class BackendIntegrationTests {
         mvc.perform(secured(get("/api/items/" + id), owner)).andExpect(status().isNotFound());
     }
     @Test
-    void searchFiltersSortingStatisticsAndRecommendations() throws Exception {
+    void searchFiltersSortingAndRecommendations() throws Exception {
         var s = student("1101");
         long first = createItem(s, "LOST", "검정 우산", "");
         long second = createItem(s, "FOUND", "검정 우산 50%_!", "");
@@ -116,10 +118,46 @@ class BackendIntegrationTests {
         mvc.perform(secured(get("/api/items").param("keyword", "도서관"), s)).andExpect(jsonPath("$.totalElements").value(3));
         mvc.perform(secured(get("/api/items/similar").param("name", "검정 우산").param("type", "LOST"), s))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(second)).andExpect(jsonPath("$.length()").value(1));
-        mvc.perform(secured(get("/api/home"), s)).andExpect(jsonPath("$.total").value(3)).andExpect(jsonPath("$.lost").value(1))
-                .andExpect(jsonPath("$.found").value(2));
         mvc.perform(secured(get("/api/items").param("size", "101"), s)).andExpect(status().isBadRequest());
         mvc.perform(secured(get("/api/items").param("sort", "invalid"), s)).andExpect(status().isBadRequest());
+    }
+    @Test
+    void listIsSortedByCreatedAtAndHasNoWriterInfoButDetailHasIt() throws Exception {
+        String writer = student("1101");
+        var member = members.findByLoginId("1101").orElseThrow();
+        mvc.perform(secured(patch("/api/auth/me"), writer).contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"01012345678\"}"));
+        long older = createItem(writer, "LOST", "먼저 쓴 글", "");
+        long newer = createItem(writer, "LOST", "나중에 쓴 글", "");
+        // id는 older가 작지만 등록 일시를 더 늦게 바꾸면 latest에서 먼저 나와야 합니다.
+        jdbc.update("update items set created_at = ? where id = ?", java.sql.Timestamp.valueOf(java.time.LocalDateTime.now().plusMinutes(5)), older);
+        jdbc.update("update items set created_at = ? where id = ?", java.sql.Timestamp.valueOf(java.time.LocalDateTime.now().minusMinutes(5)), newer);
+
+        String reader = student("1102");
+        mvc.perform(secured(get("/api/items"), reader)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(older))
+                .andExpect(jsonPath("$.content[1].id").value(newer))
+                .andExpect(jsonPath("$.content[0].userId").value(member.getId()))
+                .andExpect(jsonPath("$.content[0].userName").doesNotExist())
+                .andExpect(jsonPath("$.content[0].userPhone").doesNotExist());
+        mvc.perform(secured(get("/api/items").param("sort", "oldest"), reader))
+                .andExpect(jsonPath("$.content[0].id").value(newer));
+        mvc.perform(secured(get("/api/me/items"), writer))
+                .andExpect(jsonPath("$.content[0].id").value(older))
+                .andExpect(jsonPath("$.content[0].userPhone").doesNotExist());
+
+        mvc.perform(secured(get("/api/items/" + older), reader)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(member.getId()))
+                .andExpect(jsonPath("$.userName").value("테스트 학생"))
+                .andExpect(jsonPath("$.userPhone").value("010-1234-5678"));
+        // 전화번호가 없으면 null
+        long noPhone = createItem(reader, "FOUND", "우산", "");
+        mvc.perform(secured(get("/api/items/" + noPhone), writer))
+                .andExpect(jsonPath("$.userName").value("테스트 학생"))
+                .andExpect(jsonPath("$.userPhone").isEmpty());
+    }
+    @Test
+    void homeApiIsRemoved() throws Exception {
+        mvc.perform(secured(get("/api/home"), student("1101"))).andExpect(status().isNotFound());
     }
     @Test
     void uploadReencodesImageAndChecksOwnership() throws Exception {
@@ -249,6 +287,8 @@ class BackendIntegrationTests {
         mvc.perform(get("/api/items")).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value(SecurityConfig.LOGIN_REQUIRED));
         mvc.perform(get("/api/items/1")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/items/similar").param("name", "우산").param("type", "LOST")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/me/items")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/items").contentType(MediaType.APPLICATION_JSON).content(itemBody("LOST", "우산", "")))
                 .andExpect(status().isUnauthorized());
         mvc.perform(secured(get("/api/items"), "not-a-jwt")).andExpect(status().isUnauthorized())

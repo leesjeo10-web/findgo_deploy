@@ -2,6 +2,7 @@ package org.example.winefinder.item.service;
 
 import java.time.LocalDate;
 import java.util.*;
+import org.example.winefinder.auth.MemberRepository;
 import org.example.winefinder.image.ImageService;
 import org.example.winefinder.item.dto.*;
 import org.example.winefinder.item.entity.*;
@@ -15,13 +16,12 @@ import static org.mockito.Mockito.*;
 class ItemServiceTests {
     private final ItemRepository repository = mock(ItemRepository.class);
     private final ImageService images = mock(ImageService.class);
-    private final ItemService service = new ItemService(repository, images);
+    private final MemberRepository members = mock(MemberRepository.class);
+    private final ItemService service = new ItemService(repository, images, members);
     private final LocalDate date = LocalDate.now();
 
     private Item item(Long owner) {
-        Item item = new Item(ItemType.FOUND, "우산", "검정", ItemStatus.OPEN, "도서관", "학생회실", null, date);
-        if (owner != null) item.assignOwner(owner);
-        return item;
+        return new Item(owner, ItemType.FOUND, "우산", "검정", ItemStatus.OPEN, "도서관", "학생회실", null, date);
     }
     @Test
     void createAssignsOwnerAndDefaultsToOpen() {
@@ -46,12 +46,6 @@ class ItemServiceTests {
         assertEquals(403, assertThrows(ResponseStatusException.class, () -> service.status(1L, ItemStatus.RESOLVED, 8L)).getStatusCode().value());
         assertEquals(403, assertThrows(ResponseStatusException.class, () -> service.delete(1L, 8L)).getStatusCode().value());
         verify(repository, never()).delete(any(Item.class));
-    }
-    @Test
-    void legacyItemsWithNoOwnerAreReadOnly() {
-        when(repository.findById(1L)).thenReturn(Optional.of(item(null)));
-        assertEquals("우산", service.findById(1L).name());
-        assertEquals(403, assertThrows(ResponseStatusException.class, () -> service.delete(1L, 7L)).getStatusCode().value());
     }
     @Test
     void missingItemReturnsNotFound() {

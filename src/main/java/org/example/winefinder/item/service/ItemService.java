@@ -1,9 +1,9 @@
 package org.example.winefinder.item.service;
 
-import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
+import org.example.winefinder.auth.MemberRepository;
 import org.example.winefinder.image.ImageService;
 import org.example.winefinder.item.dto.*;
 import org.example.winefinder.item.entity.*;
@@ -21,15 +21,15 @@ import org.springframework.web.server.ResponseStatusException;
 public class ItemService {
     private final ItemRepository items;
     private final ImageService images;
+    private final MemberRepository members;
 
     @Transactional
     public ItemResponse create(ItemCreateRequest request, Long userId) {
         validate(request.type(), request.name(), request.description(), request.location(), request.storageLocation(), request.lostFoundAt());
         images.requireOwned(request.imageUrl(), userId);
-        Item item = new Item(request.type(), request.name().strip(), request.description().strip(),
+        Item item = new Item(userId, request.type(), request.name().strip(), request.description().strip(),
                 request.status() == null ? ItemStatus.OPEN : request.status(), request.location().strip(),
                 request.type() == ItemType.FOUND ? request.storageLocation() : null, request.imageUrl(), request.lostFoundAt());
-        item.assignOwner(userId);
         return ItemResponse.from(items.save(item));
     }
 
@@ -56,11 +56,16 @@ public class ItemService {
             }
             return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
         };
-        return items.findAll(spec, PageRequest.of(page, size,
-                Sort.by("oldest".equals(sort) ? Sort.Direction.ASC : Sort.Direction.DESC, "id"))).map(ItemResponse::from);
+        // 등록 일시 기준, 같은 시각이면 id 순서로 정렬합니다.
+        var direction = "oldest".equals(sort) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        return items.findAll(spec, PageRequest.of(page, size, Sort.by(direction, "createdAt", "id"))).map(ItemResponse::from);
     }
 
-    public ItemResponse findById(Long id) { return ItemResponse.from(getItem(id)); }
+    // 상세에는 작성자 이름과 전화번호를 넣습니다.
+    public ItemDetailResponse findById(Long id) {
+        Item item = getItem(id);
+        return ItemDetailResponse.from(item, members.findById(item.getUserId()).orElse(null));
+    }
 
     @Transactional
     public ItemResponse update(Long id, ItemUpdateRequest request, Long userId) {
@@ -87,21 +92,6 @@ public class ItemService {
     @Transactional
     public void delete(Long id, Long userId) { items.delete(owned(id, userId)); }
 
-    @Schema(description = "홈 화면 통계와 최근 등록 물품")
-    public record HomeResponse(
-            @Schema(description = "전체 물품 수", example = "10") long total,
-            @Schema(description = "분실물 수", example = "4") long lost,
-            @Schema(description = "습득물 수", example = "6") long found,
-            @Schema(description = "해결 완료 물품 수", example = "2") long resolved,
-            @Schema(description = "최근 분실물. 최대 3건") List<ItemResponse> recentLost,
-            @Schema(description = "최근 습득물. 최대 3건") List<ItemResponse> recentFound) {}
-    public HomeResponse home() {
-        return new HomeResponse(items.count(), items.countByType(ItemType.LOST), items.countByType(ItemType.FOUND),
-                items.countByStatus(ItemStatus.RESOLVED),
-                findAll(null, ItemType.LOST, null, "latest", 0, 3, null).getContent(),
-                findAll(null, ItemType.FOUND, null, "latest", 0, 3, null).getContent());
-    }
-
     public List<ItemResponse> similar(String name, ItemType type, Long excludeId) {
         if (name == null || name.isBlank() || name.length() > 100 || type == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "물품 이름(1~100자)과 type을 입력하세요.");
@@ -125,7 +115,7 @@ public class ItemService {
     }
     private Item owned(Long id, Long userId) {
         Item item = getItem(id);
-        if (userId == null || !userId.equals(item.getUserId())) {
+        if (!item.getUserId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인이 등록한 물품만 변경할 수 있습니다.");
         }
         return item;
