@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1060" height="630" viewBox="0 0 1060 630" font-family="'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif">
+  <rect width="1060" height="630" fill="#FFFFFF"/>
+
+  <text x="40" y="42" font-size="22" font-weight="700" fill="#111827">찾Go ERD</text>
+  <text x="1000" y="42" text-anchor="end" font-size="12" fill="#6B7280">PK 기본키 · FK 외래키 · UQ 중복 금지 · NN 필수</text>
+
+  <!-- ===== item_image ===== -->
+  <g>
+    <rect x="60" y="70" width="300" height="104" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
+    <rect x="60" y="70" width="300" height="36" rx="6" fill="#2D6CA2"/>
+    <rect x="60" y="90" width="300" height="16" fill="#2D6CA2"/>
+    <text x="74" y="94" font-size="15" font-weight="700" fill="#FFFFFF">item_image</text>
+    <line x1="60" y1="140" x2="360" y2="140" stroke="#E5E7EB"/>
+
+    <text x="74" y="128" font-size="14" fill="#111827"><tspan font-weight="700">filename</tspan><tspan dx="6" font-size="11" fill="#2D6CA2">PK</tspan></text>
+    <text x="314" y="128" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">varchar(40)</text>
+
+    <text x="74" y="162" font-size="14" fill="#111827">user_id<tspan dx="6" font-size="11" fill="#2D6CA2">FK</tspan></text>
+    <text x="314" y="162" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">bigint</text>
+    <text x="346" y="162" text-anchor="end" font-size="11" fill="#9CA3AF">NN</text>
+  </g>
+
+  <!-- ===== members ===== -->
+  <g>
+    <rect x="60" y="270" width="340" height="206" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
+    <rect x="60" y="270" width="340" height="36" rx="6" fill="#2D6CA2"/>
+    <rect x="60" y="290" width="340" height="16" fill="#2D6CA2"/>
+    <text x="74" y="294" font-size="15" font-weight="700" fill="#FFFFFF">members</text>
+    <line x1="60" y1="340" x2="400" y2="340" stroke="#E5E7EB"/>
+    <line x1="60" y1="374" x2="400" y2="374" stroke="#E5E7EB"/>
+    <line x1="60" y1="408" x2="400" y2="408" stroke="#E5E7EB"/>
+    <line x1="60" y1="442" x2="400" y2="442" stroke="#E5E7EB"/>
+
+    <text x="74" y="328" font-size="14" fill="#111827"><tspan font-weight="700">id</tspan><tspan dx="6" font-size="11" fill="#2D6CA2">PK</tspan></text>
+    <text x="354" y="328" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">bigint</text>
+
+    <text x="74" y="362" font-size="14" fill="#111827">email<tspan dx="6" font-size="11" fill="#2D6CA2">UQ</tspan></text>
+    <text x="354" y="362" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">varchar(254)</text>
+    <text x="386" y="362" text-anchor="end" font-size="11" fill="#9CA3AF">NN</text>
+
+    <text x="74" y="396" font-size="14" fill="#111827">name</text>
+    <text x="354" y="396" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">varchar(40)</text>
+    <text x="386" y="396" text-anchor="end" font-size="11" fill="#9CA3AF">NN</text>
+
+    <text x="74" y="430" font-size="14" fill="#111827">password_hash</text>
+    <text x="354" y="430" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">varchar(255)</text>
+    <text x="386" y="430" text-anchor="end" font-size="11" fill="#9CA3AF">NN</text>
+
+    <text x="74" y="464" font-size="14" fill="#111827">phone</text>
+    <text x="354" y="464" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">varchar(20)</text>
+  </g>
+
+  <!-- ===== items ===== -->
+  <g>
+    <rect x="620" y="70" width="380" height="410" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
+    <rect x="620" y="70" width="380" height="36" rx="6" fill="#2D6CA2"/>
+    <rect x="620" y="90" width="380" height="16" fill="#2D6CA2"/>
+    <text x="634" y="94" font-size="15" font-weight="700" fill="#FFFFFF">items</text>
+    <line x1="620" y1="140" x2="1000" y2="140" stroke="#E5E7EB"/>
+    <line x1="620" y1="174" x2="1000" y2="174" stroke="#E5E7EB"/>
+    <line x1="620" y1="208" x2="1000" y2="208" stroke="#E5E7EB"/>
+    <line x1="620" y1="242" x2="1000" y2="242" stroke="#E5E7EB"/>
+    <line x1="620" y1="276" x2="1000" y2="276" stroke="#E5E7EB"/>
+    <line x1="620" y1="310" x2="1000" y2="310" stroke="#E5E7EB"/>
+    <line x1="620" y1="344" x2="1000" y2="344" stroke="#E5E7EB"/>
+    <line x1="620" y1="378" x2="1000" y2="378" stroke="#E5E7EB"/>
+    <line x1="620" y1="412" x2="1000" y2="412" stroke="#E5E7EB"/>
+    <line x1="620" y1="446" x2="1000" y2="446" stroke="#E5E7EB"/>
+
+    <text x="634" y="128" font-size="14" fill="#111827"><tspan font-weight="700">id</tspan><tspan dx="6" font-size="11" fill="#2D6CA2">PK</tspan></text>
+    <text x="954" y="128" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">bigint</text>
+
+    <text x="634" y="162" font-size="14" fill="#111827">user_id<tspan dx="6" font-size="11" fill="#2D6CA2">FK</tspan></text>
+    <text x="954" y="162" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">bigint</text>
+    <text x="986" y="162" text-anchor="end" font-size="11" fill="#9CA3AF">NN</text>
+
+    <text x="634" y="196" font-size="14" fill="#111827">type</text>
+    <text x="954" y="196" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">item_type</text>
+    <text x="986" y="196" text-anchor="end" font-size="11" fill="#9CA3AF">NN</text>
+
+    <text x="634" y="230" font-size="14" fill="#111827">name</text>
+    <text x="954" y="230" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">varchar(100)</text>
+    <text x="986" y="230" text-anchor="end" font-size="11" fill="#9CA3AF">NN</text>
+
+    <text x="634" y="264" font-size="14" fill="#111827">description</text>
+    <text x="954" y="264" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">text</text>
+    <text x="986" y="264" text-anchor="end" font-size="11" fill="#9CA3AF">NN</text>
+
+    <text x="634" y="298" font-size="14" fill="#111827">status</text>
+    <text x="954" y="298" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">item_status</text>
+    <text x="986" y="298" text-anchor="end" font-size="11" fill="#9CA3AF">NN</text>
+
+    <text x="634" y="332" font-size="14" fill="#111827">location</text>
+    <text x="954" y="332" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">varchar(100)</text>
+    <text x="986" y="332" text-anchor="end" font-size="11" fill="#9CA3AF">NN</text>
+
+    <text x="634" y="366" font-size="14" fill="#111827">storage_location<tspan dx="6" font-size="11" fill="#B45309">습득물 필수</tspan></text>
+    <text x="954" y="366" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">varchar(100)</text>
+
+    <text x="634" y="400" font-size="14" fill="#111827">image_url</text>
+    <text x="954" y="400" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">text</text>
+
+    <text x="634" y="434" font-size="14" fill="#111827">lost_found_at</text>
+    <text x="954" y="434" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">date</text>
+    <text x="986" y="434" text-anchor="end" font-size="11" fill="#9CA3AF">NN</text>
+
+    <text x="634" y="468" font-size="14" fill="#111827">created_at</text>
+    <text x="954" y="468" text-anchor="end" font-family="Menlo,monospace" font-size="12.5" fill="#374151">datetime</text>
+    <text x="986" y="468" text-anchor="end" font-size="11" fill="#9CA3AF">NN</text>
+  </g>
+
+  <!-- ===== 관계선 ===== -->
+  <!-- item_image.user_id (N) → members.id (1) -->
+  <path d="M60,157 H32 V323 H60" fill="none" stroke="#64748B" stroke-width="1.6"/>
+  <path d="M46,157 L60,149 M46,157 L60,165" fill="none" stroke="#64748B" stroke-width="1.6"/>
+  <line x1="50" y1="315" x2="50" y2="331" stroke="#64748B" stroke-width="1.6"/>
+  <text x="40" y="149" text-anchor="end" font-size="12" fill="#64748B">N</text>
+  <text x="40" y="317" text-anchor="end" font-size="12" fill="#64748B">1</text>
+
+  <!-- items.user_id (N) → members.id (1) -->
+  <path d="M620,157 H540 V323 H400" fill="none" stroke="#64748B" stroke-width="1.6"/>
+  <path d="M606,157 L620,149 M606,157 L620,165" fill="none" stroke="#64748B" stroke-width="1.6"/>
+  <line x1="410" y1="315" x2="410" y2="331" stroke="#64748B" stroke-width="1.6"/>
+  <text x="604" y="149" text-anchor="end" font-size="12" fill="#64748B">N</text>
+  <text x="418" y="317" font-size="12" fill="#64748B">1</text>
+
+  <!-- ===== enum ===== -->
+  <g>
+    <rect x="60" y="510" width="170" height="88" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
+    <rect x="60" y="510" width="170" height="32" rx="6" fill="#64748B"/>
+    <rect x="60" y="526" width="170" height="16" fill="#64748B"/>
+    <text x="74" y="531" font-size="13.5" font-weight="700" fill="#FFFFFF">item_type <tspan font-weight="400" font-size="11">enum</tspan></text>
+    <line x1="60" y1="570" x2="230" y2="570" stroke="#E5E7EB"/>
+    <text x="74" y="561" font-family="Menlo,monospace" font-size="12.5" fill="#374151">LOST</text>
+    <text x="216" y="561" text-anchor="end" font-size="12" fill="#6B7280">분실물</text>
+    <text x="74" y="589" font-family="Menlo,monospace" font-size="12.5" fill="#374151">FOUND</text>
+    <text x="216" y="589" text-anchor="end" font-size="12" fill="#6B7280">습득물</text>
+  </g>
+  <g>
+    <rect x="250" y="510" width="170" height="88" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
+    <rect x="250" y="510" width="170" height="32" rx="6" fill="#64748B"/>
+    <rect x="250" y="526" width="170" height="16" fill="#64748B"/>
+    <text x="264" y="531" font-size="13.5" font-weight="700" fill="#FFFFFF">item_status <tspan font-weight="400" font-size="11">enum</tspan></text>
+    <line x1="250" y1="570" x2="420" y2="570" stroke="#E5E7EB"/>
+    <text x="264" y="561" font-family="Menlo,monospace" font-size="12.5" fill="#374151">OPEN</text>
+    <text x="406" y="561" text-anchor="end" font-size="12" fill="#6B7280">찾는 중 (기본값)</text>
+    <text x="264" y="589" font-family="Menlo,monospace" font-size="12.5" fill="#374151">RESOLVED</text>
+    <text x="406" y="589" text-anchor="end" font-size="12" fill="#6B7280">해결 완료</text>
+  </g>
+
+  <!-- ===== 관계 설명 ===== -->
+  <rect x="450" y="510" width="550" height="88" rx="8" fill="#FAFAFA" stroke="#D1D5DB" stroke-width="1.2" stroke-dasharray="6 4"/>
+  <text x="468" y="536" font-size="13" fill="#1F2937">• members 1 : N items — items.user_id → members.id</text>
+  <text x="468" y="561" font-size="13" fill="#1F2937">• members 1 : N item_image — item_image.user_id → members.id</text>
+  <text x="468" y="586" font-size="13" fill="#1F2937">• item_image와 items는 FK 없이 image_url의 파일 이름으로 연결</text>
+</svg>
