@@ -90,7 +90,10 @@ public class ItemService {
     }
 
     @Transactional
-    public void delete(Long id, Long userId) { items.delete(owned(id, userId)); }
+    // 삭제는 작성자 또는 관리자가 할 수 있습니다. 수정·상태 변경은 작성자만 할 수 있습니다.
+    public void delete(Long id, Long userId, boolean admin) {
+        items.delete(admin ? getItem(id) : owned(id, userId));
+    }
 
     public List<ItemResponse> similar(String name, ItemType type, Long excludeId) {
         if (name == null || name.isBlank() || name.length() > 100 || type == null) {

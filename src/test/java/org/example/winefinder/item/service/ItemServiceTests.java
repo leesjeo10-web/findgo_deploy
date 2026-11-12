@@ -44,8 +44,18 @@ class ItemServiceTests {
         var request = new ItemUpdateRequest(ItemType.FOUND, "바뀐 이름", "설명", ItemStatus.OPEN, "학교", null, null, date);
         assertEquals(403, assertThrows(ResponseStatusException.class, () -> service.update(1L, request, 8L)).getStatusCode().value());
         assertEquals(403, assertThrows(ResponseStatusException.class, () -> service.status(1L, ItemStatus.RESOLVED, 8L)).getStatusCode().value());
-        assertEquals(403, assertThrows(ResponseStatusException.class, () -> service.delete(1L, 8L)).getStatusCode().value());
+        assertEquals(403, assertThrows(ResponseStatusException.class, () -> service.delete(1L, 8L, false)).getStatusCode().value());
         verify(repository, never()).delete(any(Item.class));
+    }
+    @Test
+    void adminCanDeleteAnyItemButNotModifyIt() {
+        Item item = item(7L);
+        when(repository.findById(1L)).thenReturn(Optional.of(item));
+        var request = new ItemUpdateRequest(ItemType.FOUND, "바뀐 이름", "설명", ItemStatus.OPEN, "학교", null, null, date);
+        assertEquals(403, assertThrows(ResponseStatusException.class, () -> service.update(1L, request, 9L)).getStatusCode().value());
+        assertEquals(403, assertThrows(ResponseStatusException.class, () -> service.status(1L, ItemStatus.RESOLVED, 9L)).getStatusCode().value());
+        service.delete(1L, 9L, true);
+        verify(repository).delete(item);
     }
     @Test
     void missingItemReturnsNotFound() {

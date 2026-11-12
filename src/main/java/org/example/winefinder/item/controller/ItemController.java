@@ -59,10 +59,11 @@ public class ItemController {
     public ItemResponse status(@PathVariable @Parameter(description = "물품 ID", example = "1") Long id, @RequestBody StatusRequest request, @Parameter(hidden = true) Authentication user) {
         return items.status(id, request.status(), auth.current(user).getId());
     }
-    @Operation(summary = "물품 삭제", description = "작성자만 삭제할 수 있습니다. 성공하면 본문 없이 204를 반환합니다.")
+    @Operation(summary = "물품 삭제", description = "작성자 또는 관리자만 삭제할 수 있습니다. 성공하면 본문 없이 204를 반환합니다.")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable @Parameter(description = "물품 ID", example = "1") Long id, @Parameter(hidden = true) Authentication user) {
-        items.delete(id, auth.current(user).getId());
+        var member = auth.current(user);
+        items.delete(id, member.getId(), member.isAdmin());
         return ResponseEntity.noContent().build();
     }
 }

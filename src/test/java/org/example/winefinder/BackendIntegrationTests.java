@@ -156,6 +156,21 @@ class BackendIntegrationTests {
                 .andExpect(jsonPath("$.userPhone").isEmpty());
     }
     @Test
+    void adminCanDeleteStudentItemButCannotEditIt() throws Exception {
+        String owner = student("1101");
+        String admin = tokenOf("admin", Role.ADMIN);
+        long id = createItem(owner, "FOUND", "우산", "");
+        mvc.perform(secured(put("/api/items/" + id), admin).contentType(MediaType.APPLICATION_JSON)
+                .content(itemBody("FOUND", "관리자 수정", ""))).andExpect(status().isForbidden());
+        mvc.perform(secured(patch("/api/items/" + id + "/status"), admin).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"RESOLVED\"}")).andExpect(status().isForbidden());
+        mvc.perform(secured(get("/api/items/" + id), owner))
+                .andExpect(jsonPath("$.name").value("우산")).andExpect(jsonPath("$.status").value("OPEN"));
+        mvc.perform(secured(delete("/api/items/" + id), admin)).andExpect(status().isNoContent());
+        assertFalse(items.existsById(id));
+        mvc.perform(secured(delete("/api/items/" + id), admin)).andExpect(status().isNotFound());
+    }
+    @Test
     void homeApiIsRemoved() throws Exception {
         mvc.perform(secured(get("/api/home"), student("1101"))).andExpect(status().isNotFound());
     }
