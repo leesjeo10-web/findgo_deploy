@@ -20,22 +20,22 @@ class MemberTests {
 
     @Test
     void savesLoginIdRoleAndMustChangePassword() {
-        var saved = members.saveAndFlush(new Member("261109", "홍길동", "{noop}hash", Role.STUDENT, true));
-        var found = members.findByLoginId("261109").orElseThrow();
+        var saved = members.saveAndFlush(new Member("1109", "홍길동", "{noop}hash", Role.STUDENT, true));
+        var found = members.findByLoginId("1109").orElseThrow();
         assertEquals(saved.getId(), found.getId());
         assertEquals(Role.STUDENT, found.getRole());
         assertTrue(found.isMustChangePassword());
         assertNull(found.getPhone());
         assertFalse(found.isAdmin());
-        assertTrue(members.existsByLoginId("261109"));
-        assertFalse(members.existsByLoginId("261110"));
+        assertTrue(members.existsByLoginId("1109"));
+        assertFalse(members.existsByLoginId("1110"));
     }
 
     @Test
     void loginIdMustBeUnique() {
-        members.saveAndFlush(new Member("261109", "홍길동", "{noop}hash", Role.STUDENT, true));
+        members.saveAndFlush(new Member("1109", "홍길동", "{noop}hash", Role.STUDENT, true));
         assertThrows(DataIntegrityViolationException.class,
-                () -> members.saveAndFlush(new Member("261109", "김철수", "{noop}hash", Role.STUDENT, true)));
+                () -> members.saveAndFlush(new Member("1109", "김철수", "{noop}hash", Role.STUDENT, true)));
     }
 
     @Test

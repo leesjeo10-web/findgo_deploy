@@ -85,8 +85,8 @@ class BackendIntegrationTests {
 
     @Test
     void ownerCanManageItemsButOtherMemberCannot() throws Exception {
-        var owner = student("261101");
-        var other = student("261102");
+        var owner = student("1101");
+        var other = student("1102");
         long id = createItem(owner, "LOST", "우산", "");
         mvc.perform(secured(get("/api/me/items"), owner)).andExpect(jsonPath("$.content.length()").value(1));
         mvc.perform(secured(get("/api/me/items"), other)).andExpect(jsonPath("$.content.length()").value(0));
@@ -104,7 +104,7 @@ class BackendIntegrationTests {
     }
     @Test
     void searchFiltersSortingStatisticsAndRecommendations() throws Exception {
-        var s = student("261101");
+        var s = student("1101");
         long first = createItem(s, "LOST", "검정 우산", "");
         long second = createItem(s, "FOUND", "검정 우산 50%_!", "");
         createItem(s, "FOUND", "파랑 가방", "");
@@ -123,8 +123,8 @@ class BackendIntegrationTests {
     }
     @Test
     void uploadReencodesImageAndChecksOwnership() throws Exception {
-        var owner = student("261101");
-        var other = student("261102");
+        var owner = student("1101");
+        var other = student("1102");
         var bytes = new ByteArrayOutputStream();
         ImageIO.write(new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB), "png", bytes);
         var request = multipart("/api/images").file(new MockMultipartFile("file", "../photo.png", "image/png", bytes.toByteArray()));
@@ -144,12 +144,12 @@ class BackendIntegrationTests {
     }
     @Test
     void loginReturnsTokenAndUserThatWorksForMe() throws Exception {
-        tokenOf("261109", Role.STUDENT);
-        var response = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login(" 261109 ", "password123!")))
+        tokenOf("1109", Role.STUDENT);
+        var response = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login(" 1109 ", "password123!")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.expiresIn").value(3600))
-                .andExpect(jsonPath("$.user.loginId").value("261109"))
+                .andExpect(jsonPath("$.user.loginId").value("1109"))
                 .andExpect(jsonPath("$.user.name").value("테스트 학생"))
                 .andExpect(jsonPath("$.user.role").value("STUDENT"))
                 .andExpect(jsonPath("$.user.mustChangePassword").value(true))
@@ -157,15 +157,15 @@ class BackendIntegrationTests {
                 .andReturn().getResponse().getContentAsString();
         String token = json.readTree(response).get("accessToken").asText();
         mvc.perform(secured(get("/api/auth/me"), token)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.loginId").value("261109"));
+                .andExpect(jsonPath("$.loginId").value("1109"));
     }
     @Test
     void loginFailureDoesNotRevealWhichFieldIsWrong() throws Exception {
-        tokenOf("261109", Role.STUDENT);
+        tokenOf("1109", Role.STUDENT);
         String message = "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요.";
-        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("261109", "wrong-password")))
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("1109", "wrong-password")))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.message").value(message));
-        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("999999", "password123!")))
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("9999", "password123!")))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.message").value(message));
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("  ", "")))
                 .andExpect(status().isBadRequest())
@@ -173,9 +173,9 @@ class BackendIntegrationTests {
     }
     @Test
     void meReturnsMemberOfTokenWithoutSession() throws Exception {
-        String token = student("261109");
+        String token = student("1109");
         var result = mvc.perform(secured(get("/api/auth/me"), token)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.loginId").value("261109"))
+                .andExpect(jsonPath("$.loginId").value("1109"))
                 .andExpect(jsonPath("$.role").value("STUDENT"))
                 .andExpect(jsonPath("$.mustChangePassword").value(true))
                 .andExpect(jsonPath("$.phone").isEmpty())
@@ -194,7 +194,7 @@ class BackendIntegrationTests {
         mvc.perform(secured(get("/api/items"), "not-a-jwt")).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value(SecurityConfig.LOGIN_REQUIRED));
 
-        var member = members.saveAndFlush(new Member("261101", "학생", passwords.encode("password123!"), Role.STUDENT, true));
+        var member = members.saveAndFlush(new Member("1101", "학생", passwords.encode("password123!"), Role.STUDENT, true));
         var claims = JwtClaimsSet.builder().subject(String.valueOf(member.getId())).claim("role", "STUDENT")
                 .issuedAt(Instant.now().minusSeconds(7200)).expiresAt(Instant.now().minusSeconds(3600)).build();
         String expired = encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
@@ -203,7 +203,7 @@ class BackendIntegrationTests {
     }
     @Test
     void validTokenOfDeletedMemberIsUnauthorized() throws Exception {
-        String token = student("261101");
+        String token = student("1101");
         members.deleteAll();
         mvc.perform(secured(get("/api/auth/me"), token)).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value(SecurityConfig.LOGIN_REQUIRED));
@@ -211,7 +211,7 @@ class BackendIntegrationTests {
     @Test
     void adminPathsRejectStudents() throws Exception {
         mvc.perform(get("/api/admin/members")).andExpect(status().isUnauthorized());
-        mvc.perform(secured(get("/api/admin/members"), student("261101"))).andExpect(status().isForbidden())
+        mvc.perform(secured(get("/api/admin/members"), student("1101"))).andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value(SecurityConfig.ADMIN_ONLY));
     }
     @Test

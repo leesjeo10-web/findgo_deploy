@@ -13,7 +13,7 @@ public class Member {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) //자동 증가
     private Long id;
 
-    // 로그인 아이디. 학생은 숫자 6자리(예: 261109), 관리자는 admin. 만든 뒤 바꾸지 않습니다.
+    // 로그인 아이디. 학생은 숫자 4자리(예: 1109), 관리자는 admin. 만든 뒤 바꾸지 않습니다.
     @Column(nullable = false, unique = true, length = 20, updatable = false)
     private String loginId;
 

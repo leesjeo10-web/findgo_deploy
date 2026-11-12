@@ -19,7 +19,7 @@ public class AuthController {
 
     @Schema(description = "로그인 입력 정보")
     public record LoginRequest(
-            @Schema(description = "로그인 아이디. 학생은 숫자 6자리, 관리자는 admin", example = "261109", requiredMode = Schema.RequiredMode.REQUIRED)
+            @Schema(description = "로그인 아이디. 학생은 숫자 4자리, 관리자는 admin", example = "1109", requiredMode = Schema.RequiredMode.REQUIRED)
             @NotBlank(message = "아이디를 입력해주세요.") String loginId,
             @Schema(description = "비밀번호", example = "example-password", accessMode = Schema.AccessMode.WRITE_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
             @NotEmpty(message = "비밀번호를 입력해주세요.") String password) {}
@@ -31,7 +31,7 @@ public class AuthController {
     @Schema(description = "로그인 응답에 들어가는 회원 정보")
     public record LoginUser(
             @Schema(description = "회원 ID", example = "1") Long id,
-            @Schema(description = "로그인 아이디", example = "261109") String loginId,
+            @Schema(description = "로그인 아이디", example = "1109") String loginId,
             @Schema(description = "이름", example = "홍길동") String name,
             @Schema(description = "역할: STUDENT=학생, ADMIN=관리자", example = "STUDENT") Role role,
             @Schema(description = "true면 비밀번호 변경 화면으로 보내야 합니다", example = "true") boolean mustChangePassword) {
