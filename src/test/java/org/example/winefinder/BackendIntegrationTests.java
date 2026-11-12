@@ -51,6 +51,7 @@ class BackendIntegrationTests {
     @Autowired JwtEncoder encoder;
     @Autowired JdbcTemplate jdbc;
     @Autowired org.example.winefinder.image.ImageService imageService;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
     MockMvc mvc;
 
     @BeforeEach
@@ -451,6 +452,54 @@ class BackendIntegrationTests {
         mvc.perform(secured(post("/api/items"), s).contentType(MediaType.TEXT_PLAIN).content("x"))
                 .andExpect(status().isUnsupportedMediaType()).andExpect(jsonPath("$.message").exists());
     }
+    // ── 설계 3·4·6·7장 규칙 보충 ──
+    @Test
+    void photoFilesAreDeletedOnlyAfterCommit() throws Exception {
+        String owner = student("1101");
+        String url = upload(owner);
+        var tx = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        // 롤백되면 파일을 남깁니다.
+        tx.executeWithoutResult(status -> {
+            imageService.deleteFilesAfterCommit(java.util.List.of(fileName(url)));
+            assertTrue(Files.exists(UPLOADS.resolve(fileName(url)))); // 커밋 전에는 아직 있음
+            status.setRollbackOnly();
+        });
+        assertTrue(Files.exists(UPLOADS.resolve(fileName(url))));
+        // 커밋되면 지웁니다.
+        tx.executeWithoutResult(status -> imageService.deleteFilesAfterCommit(java.util.List.of(fileName(url))));
+        assertFalse(Files.exists(UPLOADS.resolve(fileName(url))));
+    }
+    @Test
+    void mustChangePasswordDoesNotBlockOtherApis() throws Exception {
+        String token = student("1101");
+        assertTrue(members.findByLoginId("1101").orElseThrow().isMustChangePassword());
+        mvc.perform(secured(get("/api/items"), token)).andExpect(status().isOk());
+        long id = createItem(token, "LOST", "우산", "");
+        mvc.perform(secured(get("/api/items/" + id), token)).andExpect(status().isOk());
+        mvc.perform(secured(get("/api/me/items"), token)).andExpect(status().isOk());
+    }
+    @Test
+    void tokenIssuedBeforePasswordResetStillWorks() throws Exception {
+        String admin = tokenOf("admin", Role.ADMIN);
+        String studentToken = student("1101");
+        long id = members.findByLoginId("1101").orElseThrow().getId();
+        mvc.perform(secured(patch("/api/admin/members/" + id + "/password"), admin).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"password\":\"reset-password\"}")).andExpect(status().isNoContent());
+        mvc.perform(secured(get("/api/auth/me"), studentToken)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.mustChangePassword").value(true));
+    }
+    @Test
+    void lostItemStorageLocationIsNullInDatabase() throws Exception {
+        String s = student("1101");
+        long lost = createItem(s, "LOST", "지갑", "");     // itemBody는 storageLocation "학생회실"을 보냄
+        long found = createItem(s, "FOUND", "우산", "");
+        assertNull(items.findById(lost).orElseThrow().getStorageLocation());
+        assertEquals("학생회실", items.findById(found).orElseThrow().getStorageLocation());
+        // 습득물을 분실물로 바꾸면 보관 장소도 지웁니다.
+        mvc.perform(secured(put("/api/items/" + found), s).contentType(MediaType.APPLICATION_JSON)
+                .content(itemBody("LOST", "우산", ""))).andExpect(status().isOk()).andExpect(jsonPath("$.storageLocation").isEmpty());
+        assertNull(items.findById(found).orElseThrow().getStorageLocation());
+    }
     @Test
     void homeApiIsRemoved() throws Exception {
         mvc.perform(secured(get("/api/home"), student("1101"))).andExpect(status().isNotFound())
@@ -673,6 +722,12 @@ class BackendIntegrationTests {
         assertTrue(spec.at("/paths/~1api~1auth~1signup").isMissingNode());
         assertTrue(spec.at("/paths/~1api~1auth~1csrf").isMissingNode());
         assertTrue(spec.at("/paths/~1api~1auth~1logout").isMissingNode());
+        assertTrue(spec.at("/paths/~1api~1home").isMissingNode());
+        assertEquals("학생 목록 조회", spec.at("/paths/~1api~1admin~1members/get/summary").asText());
+        assertEquals("학생 추가", spec.at("/paths/~1api~1admin~1members/post/summary").asText());
+        assertEquals("학생 비밀번호 초기화", spec.at("/paths/~1api~1admin~1members~1{id}~1password/patch/summary").asText());
+        assertEquals("학생 삭제", spec.at("/paths/~1api~1admin~1members~1{id}/delete/summary").asText());
+        assertEquals("내 비밀번호 변경", spec.at("/paths/~1api~1auth~1me~1password/patch/summary").asText());
         assertFalse(spec.at("/components/schemas/ItemCreateRequest/properties/name/description").asText().isBlank());
         assertEquals("검정 우산", spec.at("/components/schemas/ItemCreateRequest/properties/name/example").asText());
         assertTrue(spec.at("/components/schemas/ItemCreateRequest/required").toString().contains("lostFoundAt"));
