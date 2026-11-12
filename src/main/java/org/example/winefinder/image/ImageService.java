@@ -37,25 +37,28 @@ public class ImageService {
     @Value("${app.upload-dir:./uploads}")
     private String uploadDir;
     private static final String PREFIX = "/api/images/";
+    public static final String PROCESS_FAILED = "사진을 처리하지 못했습니다. 다른 사진을 선택해주세요.";
+    public static final String FORMAT_OR_SIZE = "JPG/PNG, 5MB 이하 사진만 올릴 수 있습니다. 다른 사진을 선택해주세요.";
 
     @Transactional
     public String upload(MultipartFile file, Long userId) {
-        if (file.isEmpty() || file.getSize() > 5 * 1024 * 1024) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "사진은 0바이트 초과, 5MB 이하로 올려 주세요.");
-        }
+        if (file.getSize() > 5 * 1024 * 1024) throw new ResponseStatusException(org.springframework.http.HttpStatusCode.valueOf(413), FORMAT_OR_SIZE);
+        if (file.isEmpty()) throw processFailed();
         Path target = null;
         try (var input = ImageIO.createImageInputStream(file.getInputStream())) {
             var readers = ImageIO.getImageReaders(input);
-            if (!readers.hasNext()) throw invalid();
+            if (!readers.hasNext()) throw processFailed(); // 이미지가 아님
             var reader = readers.next();
             BufferedImage source;
             try {
                 reader.setInput(input);
                 String format = reader.getFormatName();
-                if (!format.equalsIgnoreCase("jpeg") && !format.equalsIgnoreCase("png")) throw invalid();
+                if (!format.equalsIgnoreCase("jpeg") && !format.equalsIgnoreCase("png")) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, FORMAT_OR_SIZE); // GIF·BMP 등
+                }
                 int width = reader.getWidth(0), height = reader.getHeight(0);
                 if (width < 1 || height < 1 || (long) width * height > 20_000_000) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "사진 해상도는 2천만 화소 이하로 올려 주세요.");
+                    throw processFailed(); // 해상도 0 또는 2천만 화소 초과
                 }
                 source = reader.read(0);
             } finally { reader.dispose(); }
@@ -93,7 +96,7 @@ public class ImageService {
             if (target != null) {
                 try { Files.deleteIfExists(target); } catch (IOException ignored) { }
             }
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "사진을 읽거나 저장하지 못했습니다.");
+            throw processFailed();
         }
     }
 
@@ -103,7 +106,7 @@ public class ImageService {
         if (!url.matches("/api/images/[0-9a-f-]{36}\\.jpg")) throw invalid();
         var image = images.findById(url.substring(PREFIX.length())).orElseThrow(ImageService::invalid);
         if (!image.getUserId().equals(userId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인이 올린 사진만 첨부할 수 있습니다.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "본인이 올린 사진만 첨부할 수 있습니다.");
         }
     }
 
@@ -180,6 +183,9 @@ public class ImageService {
         var file = new FileSystemResource(Path.of(uploadDir).toAbsolutePath().normalize().resolve(filename));
         if (!file.isReadable()) throw notFound();
         return file;
+    }
+    private static ResponseStatusException processFailed() {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, PROCESS_FAILED);
     }
     private static ResponseStatusException invalid() {
         return new ResponseStatusException(HttpStatus.BAD_REQUEST, "JPG 또는 PNG 사진을 업로드한 뒤 반환된 imageUrl을 사용하세요.");

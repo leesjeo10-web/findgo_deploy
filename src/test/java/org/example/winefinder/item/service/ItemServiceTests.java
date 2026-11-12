@@ -18,7 +18,7 @@ class ItemServiceTests {
     private final ImageService images = mock(ImageService.class);
     private final MemberRepository members = mock(MemberRepository.class);
     private final ItemService service = new ItemService(repository, images, members);
-    private final LocalDate date = LocalDate.now();
+    private final LocalDate date = LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
 
     private Item item(Long owner) {
         return new Item(owner, ItemType.FOUND, "우산", "검정", ItemStatus.OPEN, "도서관", "학생회실", null, date);
@@ -66,8 +66,8 @@ class ItemServiceTests {
     void updateCanClearImageAndChangeStatus() {
         Item item = item(7L);
         when(repository.findById(1L)).thenReturn(Optional.of(item));
-        var response = service.update(1L, new ItemUpdateRequest(ItemType.FOUND, "우산", "검정", ItemStatus.RESOLVED,
-                "도서관", null, null, date), 7L);
+        var response = service.update(1L, new ItemUpdateRequest(ItemType.LOST, "우산", "검정", ItemStatus.RESOLVED,
+                "도서관", "학생회실", null, date), 7L);
         assertEquals(ItemStatus.RESOLVED, response.status());
         assertNull(response.storageLocation());
         assertNull(response.imageUrl());

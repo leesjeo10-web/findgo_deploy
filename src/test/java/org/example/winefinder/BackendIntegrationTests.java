@@ -358,9 +358,103 @@ class BackendIntegrationTests {
         mvc.perform(secured(delete("/api/admin/members/" + otherId), other)).andExpect(status().isForbidden());
         assertTrue(members.existsById(otherId));
     }
+    private String itemJson(Map<String, Object> overrides) {
+        var body = new java.util.HashMap<String, Object>(Map.of("type", "FOUND", "name", "우산", "description", "검정",
+                "location", "도서관", "storageLocation", "학생회실", "lostFoundAt", LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).toString()));
+        body.putAll(overrides);
+        return json.writeValueAsString(body);
+    }
+    private org.springframework.test.web.servlet.ResultActions postItem(String token, String body) throws Exception {
+        return mvc.perform(secured(post("/api/items"), token).contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+    @Test
+    void itemValidationUsesDesignMessages() throws Exception {
+        String s = student("1101");
+        var none = new java.util.HashMap<String, Object>();
+        String[][] missing = {{"type", "유형을 입력해주세요."}, {"name", "이름을 입력해주세요."}, {"description", "설명을 입력해주세요."},
+                {"location", "장소를 입력해주세요."}, {"storageLocation", "보관 장소를 입력해주세요."}, {"lostFoundAt", "날짜를 입력해주세요."}};
+        for (String[] m : missing) {
+            var body = new java.util.HashMap<String, Object>(json.readValue(itemJson(none), Map.class));
+            body.remove(m[0]);
+            postItem(s, json.writeValueAsString(body)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value(m[1]));
+        }
+        // 공백만 있으면 빈 값
+        postItem(s, itemJson(Map.of("name", "   "))).andExpect(jsonPath("$.message").value("이름을 입력해주세요."));
+        postItem(s, itemJson(Map.of("storageLocation", "  "))).andExpect(jsonPath("$.message").value("보관 장소를 입력해주세요."));
+        // 글자 수는 앞뒤 공백을 지운 뒤 셉니다.
+        String tooLong = "이름·장소는 100자, 설명은 2000자 이하로 입력하세요.";
+        postItem(s, itemJson(Map.of("name", "가".repeat(101)))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value(tooLong));
+        postItem(s, itemJson(Map.of("location", "가".repeat(101)))).andExpect(jsonPath("$.message").value(tooLong));
+        postItem(s, itemJson(Map.of("storageLocation", "가".repeat(101)))).andExpect(jsonPath("$.message").value(tooLong));
+        postItem(s, itemJson(Map.of("description", "가".repeat(2001)))).andExpect(jsonPath("$.message").value(tooLong));
+        postItem(s, itemJson(Map.of("name", "  " + "가".repeat(100) + "  ", "description", "가".repeat(2000))))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.name").value("가".repeat(100)));
+        // 미래 날짜(Asia/Seoul 기준 내일)
+        postItem(s, itemJson(Map.of("lostFoundAt", LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).plusDays(1).toString())))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("미래 날짜는 입력할 수 없습니다."));
+        // 분실물은 보관 장소를 보내도 null로 저장, 앞뒤 공백 제거
+        postItem(s, itemJson(Map.of("type", "LOST", "name", "  지갑  ")))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.storageLocation").isEmpty())
+                .andExpect(jsonPath("$.name").value("지갑")).andExpect(jsonPath("$.imageUrl").isEmpty());
+        postItem(s, itemJson(Map.of("type", "LOST", "storageLocation", "가".repeat(101)))).andExpect(status().isCreated());
+        // 이미지 주소는 /api/images/ 아래만
+        postItem(s, itemJson(Map.of("imageUrl", "https://example.com/a.jpg"))).andExpect(status().isBadRequest());
+        // 검색어는 공백을 지운 뒤 100자
+        mvc.perform(secured(get("/api/items").param("keyword", "가".repeat(101)), s))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("검색어는 100자 이하로 입력하세요."));
+        mvc.perform(secured(get("/api/items").param("keyword", " " + "가".repeat(100) + " "), s)).andExpect(status().isOk());
+    }
+    @Test
+    void itemNotFoundAndNotOwnerUseDesignMessages() throws Exception {
+        String owner = student("1101"), other = student("1102");
+        long id = createItem(owner, "FOUND", "우산", "");
+        String forbidden = "본인이 등록한 물품만 수정·삭제할 수 있습니다.";
+        mvc.perform(secured(put("/api/items/" + id), other).contentType(MediaType.APPLICATION_JSON).content(itemBody("FOUND", "변경", "")))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.message").value(forbidden));
+        mvc.perform(secured(delete("/api/items/" + id), other))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.message").value(forbidden));
+        String notFound = "해당 물품을 찾을 수 없습니다. 삭제되었거나 주소가 잘못되었을 수 있습니다.";
+        mvc.perform(secured(get("/api/items/999999"), owner)).andExpect(status().isNotFound()).andExpect(jsonPath("$.message").value(notFound));
+        mvc.perform(secured(delete("/api/items/999999"), owner)).andExpect(jsonPath("$.message").value(notFound));
+        mvc.perform(secured(patch("/api/items/" + id + "/status"), owner).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("상태를 입력해주세요."));
+    }
+    @Test
+    void imageUploadErrorsUseDesignMessages() throws Exception {
+        String s = student("1101");
+        String failed = "사진을 처리하지 못했습니다. 다른 사진을 선택해주세요.";
+        String formatOrSize = "JPG/PNG, 5MB 이하 사진만 올릴 수 있습니다. 다른 사진을 선택해주세요.";
+        mvc.perform(secured(multipart("/api/images").file(new MockMultipartFile("file", "a.png", "image/png", "not image".getBytes())), s))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value(failed));
+        mvc.perform(secured(multipart("/api/images").file(new MockMultipartFile("file", "a.png", "image/png", new byte[0])), s))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value(failed));
+        var gif = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB), "gif", gif);
+        mvc.perform(secured(multipart("/api/images").file(new MockMultipartFile("file", "a.gif", "image/gif", gif.toByteArray())), s))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value(formatOrSize));
+        mvc.perform(secured(multipart("/api/images").file(new MockMultipartFile("file", "big.png", "image/png", new byte[5 * 1024 * 1024 + 1])), s))
+                .andExpect(status().is(413)).andExpect(jsonPath("$.message").value(formatOrSize));
+        mvc.perform(secured(multipart("/api/images"), s)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").exists());
+        assertEquals(0, images.count());
+    }
+    @Test
+    void frameworkErrorsAlsoUseMessageFormat() throws Exception {
+        String s = student("1101");
+        postItem(s, "{broken json").andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("입력값을 확인해 주세요."));
+        postItem(s, itemJson(Map.of("type", "UNKNOWN"))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("입력값을 확인해 주세요."));
+        mvc.perform(secured(get("/api/items").param("type", "UNKNOWN"), s))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("입력값을 확인해 주세요."));
+        mvc.perform(secured(get("/api/items").param("page", "abc"), s)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").exists());
+        mvc.perform(secured(put("/api/items"), s).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isMethodNotAllowed()).andExpect(jsonPath("$.message").value("지원하지 않는 요청 방식입니다."));
+        postItem(s, "").andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("입력값을 확인해 주세요."));
+        mvc.perform(secured(post("/api/items"), s).contentType(MediaType.TEXT_PLAIN).content("x"))
+                .andExpect(status().isUnsupportedMediaType()).andExpect(jsonPath("$.message").exists());
+    }
     @Test
     void homeApiIsRemoved() throws Exception {
-        mvc.perform(secured(get("/api/home"), student("1101"))).andExpect(status().isNotFound());
+        mvc.perform(secured(get("/api/home"), student("1101"))).andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("요청한 주소를 찾을 수 없습니다."));
     }
     @Test
     void uploadReencodesImageAndChecksOwnership() throws Exception {
@@ -375,7 +469,7 @@ class BackendIntegrationTests {
         mvc.perform(secured(get(url), other)).andExpect(status().isOk()).andExpect(content().contentType(MediaType.IMAGE_JPEG));
         createItem(owner, "FOUND", "우산", url);
         mvc.perform(secured(post("/api/items"), other).contentType(MediaType.APPLICATION_JSON).content(itemBody("LOST", "우산", url)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("본인이 올린 사진만 첨부할 수 있습니다."));
         mvc.perform(secured(multipart("/api/images").file(new MockMultipartFile("file", "fake.png", "image/png", "invalid".getBytes())), owner))
                 .andExpect(status().isBadRequest());
         mvc.perform(secured(post("/api/items"), owner).contentType(MediaType.APPLICATION_JSON)
