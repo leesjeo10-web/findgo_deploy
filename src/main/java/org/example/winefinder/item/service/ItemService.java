@@ -73,10 +73,13 @@ public class ItemService {
         validate(request.type(), request.name(), request.description(), request.location(), request.storageLocation(), request.lostFoundAt());
         if (request.status() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status를 입력하세요.");
         // 기존 사진은 유지 가능하며, 교체 사진은 본인이 업로드한 사진이어야 합니다.
-        if (!Objects.equals(item.getImageUrl(), request.imageUrl())) images.requireOwned(request.imageUrl(), userId);
+        String oldImageUrl = item.getImageUrl();
+        boolean imageChanged = !Objects.equals(oldImageUrl, request.imageUrl());
+        if (imageChanged) images.requireOwned(request.imageUrl(), userId);
         item.update(request.type(), request.name().strip(), request.description().strip(), request.status(),
                 request.location().strip(), request.type() == ItemType.FOUND ? request.storageLocation() : null,
                 request.imageUrl(), request.lostFoundAt());
+        if (imageChanged) images.release(oldImageUrl); // 바꾸거나 비운 예전 사진 정리
         return ItemResponse.from(item);
     }
 
@@ -92,7 +95,9 @@ public class ItemService {
     @Transactional
     // 삭제는 작성자 또는 관리자가 할 수 있습니다. 수정·상태 변경은 작성자만 할 수 있습니다.
     public void delete(Long id, Long userId, boolean admin) {
-        items.delete(admin ? getItem(id) : owned(id, userId));
+        Item item = admin ? getItem(id) : owned(id, userId);
+        items.delete(item);
+        images.release(item.getImageUrl()); // 물품 사진도 함께 정리
     }
 
     public List<ItemResponse> similar(String name, ItemType type, Long excludeId) {

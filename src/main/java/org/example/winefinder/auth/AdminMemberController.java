@@ -1,16 +1,19 @@
 package org.example.winefinder.auth;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.net.URI;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 // /api/admin/** 는 SecurityConfig에서 ADMIN만 들어올 수 있습니다(학생은 403).
-@Tag(name = "관리자 - 학생 관리", description = "선생님(관리자)만 사용합니다. 학생 목록 조회와 학생 추가")
+@Tag(name = "관리자 - 학생 관리", description = "선생님(관리자)만 사용합니다. 학생 목록·추가·비밀번호 초기화·삭제")
 @RestController
 @RequestMapping("/api/admin/members")
 @RequiredArgsConstructor
@@ -44,5 +47,27 @@ public class AdminMemberController {
     public ResponseEntity<StudentResponse> addStudent(@RequestBody StudentCreateRequest request) {
         var student = StudentResponse.from(admin.addStudent(request.loginId(), request.name(), request.phone(), request.password()));
         return ResponseEntity.created(URI.create("/api/admin/members/" + student.id())).body(student);
+    }
+
+    @Schema(description = "비밀번호 초기화 입력 정보")
+    public record PasswordResetRequest(
+            @Schema(description = "새 초기 비밀번호. 8~64자", example = "reset-password", accessMode = Schema.AccessMode.WRITE_ONLY, requiredMode = Schema.RequiredMode.REQUIRED) String password) {}
+
+    @Operation(summary = "학생 비밀번호 초기화", description = "관리자 토큰이 필요합니다. 성공하면 204이고 학생은 다음 로그인 후 비밀번호를 바꿔야 합니다(mustChangePassword=true). "
+            + "대상이 관리자 계정이면 403, 없는 회원이면 404입니다. 이미 발급된 토큰은 만료될 때까지 쓸 수 있습니다.")
+    @ApiResponse(responseCode = "204", description = "초기화됨")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PatchMapping("/{id}/password")
+    public void resetPassword(@PathVariable @Parameter(description = "회원 ID", example = "1") Long id, @RequestBody PasswordResetRequest request) {
+        admin.resetPassword(id, request.password());
+    }
+
+    @Operation(summary = "학생 삭제", description = "관리자 토큰이 필요합니다. 학생이 등록한 물품과 사진도 함께 지웁니다. 성공하면 204입니다. "
+            + "대상이 관리자 계정이면 403 \"관리자 계정은 삭제할 수 없습니다.\", 없는 회원이면 404입니다.")
+    @ApiResponse(responseCode = "204", description = "삭제됨")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @DeleteMapping("/{id}")
+    public void deleteStudent(@PathVariable @Parameter(description = "회원 ID", example = "1") Long id) {
+        admin.deleteStudent(id);
     }
 }

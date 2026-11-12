@@ -60,6 +60,12 @@ public class Member {
         this.mustChangePassword = false;
     }
 
+    // 관리자가 초기화하면 학생은 다음 로그인 때 비밀번호를 다시 바꿔야 합니다.
+    public void resetPassword(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
+        this.mustChangePassword = true;
+    }
+
     public void changePhone(String phone) { this.phone = phone; }
 
     public void changeOfficePhone(String officePhone) { this.officePhone = officePhone; }

@@ -50,11 +50,13 @@ class BackendIntegrationTests {
     @Autowired JwtService jwt;
     @Autowired JwtEncoder encoder;
     @Autowired JdbcTemplate jdbc;
+    @Autowired org.example.winefinder.image.ImageService imageService;
     MockMvc mvc;
 
     @BeforeEach
-    void setup() {
+    void setup() throws Exception {
         images.deleteAll(); items.deleteAll(); members.deleteAll();
+        try (var files = Files.list(UPLOADS)) { for (Path file : files.toList()) Files.deleteIfExists(file); } // 테스트마다 사진 폴더 비우기
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
     @AfterAll
@@ -246,6 +248,115 @@ class BackendIntegrationTests {
                     .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value(c[3]));
         }
         assertEquals(1, members.count()); // admin만 있음
+    }
+    // 10x10 PNG를 올리고 imageUrl을 돌려줍니다.
+    private String upload(String token) throws Exception {
+        var bytes = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB), "png", bytes);
+        var response = mvc.perform(secured(multipart("/api/images")
+                        .file(new MockMultipartFile("file", "photo.png", "image/png", bytes.toByteArray())), token))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return json.readTree(response).get("imageUrl").asText();
+    }
+    private String fileName(String url) { return url.substring("/api/images/".length()); }
+    private boolean photoExists(String url) { return Files.exists(UPLOADS.resolve(fileName(url))) || images.existsById(fileName(url)); }
+
+    @Test
+    void oldPhotoIsRemovedWhenItemIsDeletedOrPhotoChangedOrCleared() throws Exception {
+        String owner = student("1101");
+        String first = upload(owner), second = upload(owner), shared = upload(owner);
+        long id = createItem(owner, "FOUND", "우산", first);
+        // 사진 교체 → 예전 사진 삭제
+        mvc.perform(secured(put("/api/items/" + id), owner).contentType(MediaType.APPLICATION_JSON)
+                .content(itemBody("FOUND", "우산", second))).andExpect(status().isOk());
+        assertFalse(photoExists(first));
+        assertTrue(Files.exists(UPLOADS.resolve(fileName(second))));
+        // 사진 비우기 → 삭제
+        mvc.perform(secured(put("/api/items/" + id), owner).contentType(MediaType.APPLICATION_JSON)
+                .content(itemBody("FOUND", "우산", ""))).andExpect(status().isOk());
+        assertFalse(photoExists(second));
+        // 물품 삭제 → 사진 삭제. 같은 사진을 쓰는 다른 물품이 있으면 남깁니다.
+        long a = createItem(owner, "FOUND", "가방", shared);
+        long b = createItem(owner, "LOST", "가방", shared);
+        mvc.perform(secured(delete("/api/items/" + a), owner)).andExpect(status().isNoContent());
+        assertTrue(Files.exists(UPLOADS.resolve(fileName(shared))) && images.existsById(fileName(shared)));
+        mvc.perform(secured(delete("/api/items/" + b), owner)).andExpect(status().isNoContent());
+        assertFalse(photoExists(shared));
+        // 관리자가 지워도 사진이 정리됩니다.
+        String third = upload(owner);
+        long c = createItem(owner, "FOUND", "필통", third);
+        mvc.perform(secured(delete("/api/items/" + c), tokenOf("admin", Role.ADMIN))).andExpect(status().isNoContent());
+        assertFalse(photoExists(third));
+    }
+    @Test
+    void unlinkedPhotosAreDeletedThreeHoursAfterUpload() throws Exception {
+        String owner = student("1101");
+        String unlinked = upload(owner), linked = upload(owner);
+        createItem(owner, "FOUND", "우산", linked);
+        // 아직 3시간이 지나지 않았으면 남깁니다.
+        assertEquals(0, imageService.deleteUnlinkedImages(Instant.now().plus(java.time.Duration.ofHours(2))));
+        assertTrue(photoExists(unlinked));
+        // 3시간이 지나면 연결되지 않은 사진만 지웁니다.
+        assertEquals(1, imageService.deleteUnlinkedImages(Instant.now().plus(java.time.Duration.ofHours(3).plusMinutes(1))));
+        assertFalse(photoExists(unlinked));
+        assertTrue(Files.exists(UPLOADS.resolve(fileName(linked))) && images.existsById(fileName(linked)));
+    }
+    @Test
+    void adminResetsStudentPasswordButNotAdminPassword() throws Exception {
+        String admin = tokenOf("admin", Role.ADMIN);
+        long adminId = members.findByLoginId("admin").orElseThrow().getId();
+        var studentMember = members.saveAndFlush(new Member("1109", "김민수", passwords.encode("old-password"), Role.STUDENT, false));
+        String url = "/api/admin/members/" + studentMember.getId() + "/password";
+        mvc.perform(secured(patch(url), admin).contentType(MediaType.APPLICATION_JSON).content("{\"password\":\"short\"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("비밀번호는 8~64자로 입력해주세요."));
+        mvc.perform(secured(patch(url), admin).contentType(MediaType.APPLICATION_JSON).content("{\"password\":\"reset-password\"}"))
+                .andExpect(status().isNoContent());
+        var reset = members.findById(studentMember.getId()).orElseThrow();
+        assertTrue(reset.isMustChangePassword());
+        assertTrue(passwords.matches("reset-password", reset.getPasswordHash()));
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("1109", "reset-password")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.user.mustChangePassword").value(true));
+
+        mvc.perform(secured(patch("/api/admin/members/" + adminId + "/password"), admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"reset-password\"}"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.message").value("관리자 계정의 비밀번호는 화면에서 변경할 수 없습니다."));
+        assertTrue(passwords.matches("password123!", members.findById(adminId).orElseThrow().getPasswordHash()));
+        mvc.perform(secured(patch("/api/admin/members/999999/password"), admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"reset-password\"}"))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.message").value("해당 학생을 찾을 수 없습니다."));
+        mvc.perform(secured(patch(url), student("1201")).contentType(MediaType.APPLICATION_JSON).content("{\"password\":\"reset-password\"}"))
+                .andExpect(status().isForbidden());
+    }
+    @Test
+    void deletingStudentRemovesItemsAndPhotosButAdminIsProtected() throws Exception {
+        String admin = tokenOf("admin", Role.ADMIN);
+        long adminId = members.findByLoginId("admin").orElseThrow().getId();
+        String target = student("1101");
+        long targetId = members.findByLoginId("1101").orElseThrow().getId();
+        String other = student("1102");
+        String attached = upload(target), notAttached = upload(target), othersPhoto = upload(other);
+        createItem(target, "FOUND", "우산", attached);
+        createItem(target, "LOST", "필통", "");
+        long othersItem = createItem(other, "LOST", "가방", othersPhoto);
+
+        mvc.perform(secured(delete("/api/admin/members/" + targetId), admin)).andExpect(status().isNoContent());
+        assertFalse(members.existsById(targetId));
+        assertEquals(1, items.count());
+        assertTrue(items.existsById(othersItem));
+        assertFalse(photoExists(attached));
+        assertFalse(photoExists(notAttached));
+        assertTrue(Files.exists(UPLOADS.resolve(fileName(othersPhoto))) && images.existsById(fileName(othersPhoto)));
+        // 삭제된 학생의 토큰은 401
+        mvc.perform(secured(get("/api/auth/me"), target)).andExpect(status().isUnauthorized());
+
+        mvc.perform(secured(delete("/api/admin/members/" + adminId), admin))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.message").value("관리자 계정은 삭제할 수 없습니다."));
+        assertTrue(members.existsById(adminId));
+        mvc.perform(secured(delete("/api/admin/members/" + targetId), admin))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.message").value("해당 학생을 찾을 수 없습니다."));
+        long otherId = members.findByLoginId("1102").orElseThrow().getId();
+        mvc.perform(secured(delete("/api/admin/members/" + otherId), other)).andExpect(status().isForbidden());
+        assertTrue(members.existsById(otherId));
     }
     @Test
     void homeApiIsRemoved() throws Exception {
