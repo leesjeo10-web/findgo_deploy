@@ -16,20 +16,20 @@ import org.springframework.web.server.ResponseStatusException;
 public class AuthService {
     private final MemberRepository members;
     private final PasswordEncoder passwords;
+    private final JwtService tokens;
 
-    // 임시: 4단계에서 회원가입 API와 함께 삭제합니다.
-    @Transactional
-    public MemberResponse signup(String loginId, String name, String password) {
-        String id = loginId == null ? "" : loginId.strip();
-        if (name == null || name.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이름을 입력해주세요."); // HttpStatus.BAD_REQUEST - 400
-        }
-        if (members.existsByLoginId(id)) { // existsByLoginId - db에 해당 아이디 기록 있는지 확인
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 아이디입니다."); // HttpStatus.CONFLICT - 409
-        }
-        return MemberResponse.from(members.saveAndFlush(new Member(id, name.strip(), passwords.encode(password), Role.STUDENT, true)));
-        // saveAndFlush - Member entity db에 저장  / passwords.encode(password) - 비밀 번호 해시 처리
+    // 로그인: 아이디는 앞뒤 공백을 지우고, 비밀번호는 그대로 비교합니다.
+    // 아이디가 없거나 비밀번호가 틀려도 같은 401 문구로 응답합니다(어느 쪽이 틀렸는지 알려주지 않음).
+    public Member login(String loginId, String password) {
+        return members.findByLoginId(loginId.strip())
+                .filter(m -> passwords.matches(password, m.getPasswordHash())) // 입력 비밀번호와 저장된 해시 비교
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요."));
     }
+
+    public String issueToken(Member member) { return tokens.issue(member); }
+
+    public long tokenExpiresSeconds() { return tokens.expiresSeconds(); }
 
     // 현재 authentication에 맞는 회원 조회
     // 토큰의 subject(회원 id)로 찾습니다. 토큰은 유효해도 회원이 삭제됐으면 401입니다.

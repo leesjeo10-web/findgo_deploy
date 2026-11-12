@@ -65,7 +65,7 @@ class BackendIntegrationTests {
     private AbstractMockHttpServletRequestBuilder<?> secured(AbstractMockHttpServletRequestBuilder<?> request, String token) {
         return request.header("Authorization", "Bearer " + token);
     }
-    // DB에 회원을 만들고 그 회원의 토큰을 발급합니다. (로그인 API는 4단계에서 추가)
+    // DB에 회원을 만들고 그 회원의 토큰을 발급합니다. (비밀번호: password123!)
     private String tokenOf(String loginId, Role role) {
         var member = members.saveAndFlush(new Member(loginId, "테스트 학생", passwords.encode("password123!"), role, role == Role.STUDENT));
         return jwt.issue(member);
@@ -139,6 +139,38 @@ class BackendIntegrationTests {
         mvc.perform(secured(post("/api/items"), owner).contentType(MediaType.APPLICATION_JSON)
                 .content(itemBody("LOST", "우산", "https://example.com/pic.png"))).andExpect(status().isBadRequest());
     }
+    private String login(String loginId, String password) {
+        return json.writeValueAsString(Map.of("loginId", loginId, "password", password));
+    }
+    @Test
+    void loginReturnsTokenAndUserThatWorksForMe() throws Exception {
+        tokenOf("261109", Role.STUDENT);
+        var response = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login(" 261109 ", "password123!")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").value(3600))
+                .andExpect(jsonPath("$.user.loginId").value("261109"))
+                .andExpect(jsonPath("$.user.name").value("테스트 학생"))
+                .andExpect(jsonPath("$.user.role").value("STUDENT"))
+                .andExpect(jsonPath("$.user.mustChangePassword").value(true))
+                .andExpect(jsonPath("$.user.passwordHash").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        String token = json.readTree(response).get("accessToken").asText();
+        mvc.perform(secured(get("/api/auth/me"), token)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.loginId").value("261109"));
+    }
+    @Test
+    void loginFailureDoesNotRevealWhichFieldIsWrong() throws Exception {
+        tokenOf("261109", Role.STUDENT);
+        String message = "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요.";
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("261109", "wrong-password")))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.message").value(message));
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("999999", "password123!")))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.message").value(message));
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("  ", "")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.length()").value(2));
+    }
     @Test
     void meReturnsMemberOfTokenWithoutSession() throws Exception {
         String token = student("261109");
@@ -203,7 +235,10 @@ class BackendIntegrationTests {
         var spec = json.readTree(response);
         assertEquals("찾GO API", spec.at("/info/title").asText());
         assertEquals("물품 등록", spec.at("/paths/~1api~1items/post/summary").asText());
-        assertEquals("회원가입", spec.at("/paths/~1api~1auth~1signup/post/summary").asText());
+        assertEquals("로그인", spec.at("/paths/~1api~1auth~1login/post/summary").asText());
+        assertTrue(spec.at("/paths/~1api~1auth~1signup").isMissingNode());
+        assertTrue(spec.at("/paths/~1api~1auth~1csrf").isMissingNode());
+        assertTrue(spec.at("/paths/~1api~1auth~1logout").isMissingNode());
         assertFalse(spec.at("/components/schemas/ItemCreateRequest/properties/name/description").asText().isBlank());
         assertEquals("검정 우산", spec.at("/components/schemas/ItemCreateRequest/properties/name/example").asText());
         assertTrue(spec.at("/components/schemas/ItemCreateRequest/required").toString().contains("lostFoundAt"));
