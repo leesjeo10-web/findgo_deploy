@@ -56,7 +56,8 @@ public class AuthController {
 
     @Schema(description = "전화번호 변경 입력 정보")
     public record PhoneChangeRequest(
-            @Schema(description = "전화번호. 01012345678, 010-1234-5678 모두 가능. null이나 빈 값이면 삭제", example = "010-1234-5678", nullable = true) String phone) {}
+            @Schema(description = "휴대전화 번호(필수). 01012345678, 010-1234-5678 모두 가능. 지울 수 없습니다", example = "010-1234-5678", requiredMode = Schema.RequiredMode.REQUIRED) String phone,
+            @Schema(description = "교무실 번호. 관리자는 필수, 학생은 보내도 무시합니다", example = "02-123-4567", nullable = true) String officePhone) {}
 
     @Operation(summary = "로그인", description = "토큰 없이 호출합니다. 아이디·비밀번호가 맞으면 accessToken을 발급합니다. "
             + "틀리면 어느 쪽이 틀렸는지 알려주지 않고 401입니다. 빈 칸은 400입니다. 로그아웃 API는 없으며 프론트엔드가 토큰을 지웁니다.")
@@ -82,10 +83,10 @@ public class AuthController {
         auth.changePassword(authentication, request.currentPassword(), request.newPassword());
     }
 
-    @Operation(summary = "내 전화번호 변경", description = "토큰이 필요합니다. phone이 null이거나 빈 값이면 전화번호를 지웁니다. "
-            + "010-1234-5678 모양으로 저장하고 내 정보를 돌려줍니다. 형식이 틀리면 400입니다.")
+    @Operation(summary = "내 연락처 변경", description = "토큰이 필요합니다. 전화번호는 지울 수 없어 phone이 null이거나 빈 값이면 400 \"전화번호를 입력해주세요.\"입니다. "
+            + "관리자는 officePhone(교무실 번호)도 필수입니다. 010-1234-5678 모양으로 저장하고 내 정보를 돌려줍니다. 형식이 틀리면 400입니다.")
     @PatchMapping("/me")
     public MemberResponse changePhone(@Parameter(hidden = true) Authentication authentication, @RequestBody PhoneChangeRequest request) {
-        return MemberResponse.from(auth.changePhone(authentication, request.phone()));
+        return MemberResponse.from(auth.changePhone(authentication, request.phone(), request.officePhone()));
     }
 }

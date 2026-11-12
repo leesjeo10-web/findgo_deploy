@@ -8,7 +8,7 @@ import org.example.winefinder.item.entity.Item;
 import org.example.winefinder.item.entity.ItemStatus;
 import org.example.winefinder.item.entity.ItemType;
 
-// 물품 상세 응답. 목록 응답(ItemResponse)에 작성자 이름과 전화번호를 더합니다.
+// 물품 상세 응답. 목록 응답(ItemResponse)에 작성자 이름과 연락처를 더합니다.
 @Schema(description = "물품 상세 정보. 목록 항목에 작성자 이름·전화번호가 추가됩니다.")
 public record ItemDetailResponse(
         @Schema(description = "물품 ID", example = "1") Long id,
@@ -23,12 +23,14 @@ public record ItemDetailResponse(
         @Schema(description = "분실 또는 습득 날짜", example = "2026-10-01") LocalDate lostFoundAt,
         @Schema(description = "서버에서 생성한 등록 일시", example = "2026-10-01T09:00:00") LocalDateTime createdAt,
         @Schema(description = "작성자 이름", example = "홍길동") String userName,
-        @Schema(description = "작성자 전화번호. 없으면 null", example = "010-1234-5678", nullable = true) String userPhone
+        @Schema(description = "작성자 휴대전화 번호. 없으면 null", example = "010-1234-5678", nullable = true) String userPhone,
+        @Schema(description = "작성자 교무실 번호. 관리자가 쓴 글만 있고 학생 글은 null", example = "02-123-4567", nullable = true) String userOfficePhone
 ) {
     public static ItemDetailResponse from(Item item, Member writer) {
         return new ItemDetailResponse(item.getId(), item.getUserId(), item.getType(), item.getName(),
                 item.getDescription(), item.getStatus(), item.getLocation(), item.getStorageLocation(),
                 item.getImageUrl(), item.getLostFoundAt(), item.getCreatedAt(),
-                writer == null ? null : writer.getName(), writer == null ? null : writer.getPhone());
+                writer == null ? null : writer.getName(), writer == null ? null : writer.getPhone(),
+                writer == null ? null : writer.getOfficePhone());
     }
 }

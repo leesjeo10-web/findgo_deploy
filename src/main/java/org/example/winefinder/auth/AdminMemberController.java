@@ -29,6 +29,7 @@ public class AdminMemberController {
     public record StudentCreateRequest(
             @Schema(description = "로그인 아이디. 숫자 4자리 학번(예: 1109 = 1학년 1반 9번)", example = "1109", requiredMode = Schema.RequiredMode.REQUIRED) String loginId,
             @Schema(description = "이름. 40자 이하", example = "김민수", requiredMode = Schema.RequiredMode.REQUIRED) String name,
+            @Schema(description = "휴대전화 번호(선택). 비우면 학생이 첫 로그인 때 입력합니다", example = "010-1234-5678", nullable = true) String phone,
             @Schema(description = "초기 비밀번호. 8~64자", example = "initial-password", accessMode = Schema.AccessMode.WRITE_ONLY, requiredMode = Schema.RequiredMode.REQUIRED) String password) {}
 
     @Operation(summary = "학생 목록 조회", description = "관리자 토큰이 필요합니다. 관리자 계정은 빼고 아이디 순으로 반환합니다. 학생 토큰은 403입니다.")
@@ -41,7 +42,7 @@ public class AdminMemberController {
             + "아이디가 숫자 4자리가 아니면 400 \"아이디는 숫자 4자리로 입력해주세요.\", 이미 있는 아이디면 409입니다.")
     @PostMapping
     public ResponseEntity<StudentResponse> addStudent(@RequestBody StudentCreateRequest request) {
-        var student = StudentResponse.from(admin.addStudent(request.loginId(), request.name(), request.password()));
+        var student = StudentResponse.from(admin.addStudent(request.loginId(), request.name(), request.phone(), request.password()));
         return ResponseEntity.created(URI.create("/api/admin/members/" + student.id())).body(student);
     }
 }

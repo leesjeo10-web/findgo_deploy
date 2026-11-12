@@ -148,7 +148,8 @@ class BackendIntegrationTests {
         mvc.perform(secured(get("/api/items/" + older), reader)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(member.getId()))
                 .andExpect(jsonPath("$.userName").value("테스트 학생"))
-                .andExpect(jsonPath("$.userPhone").value("010-1234-5678"));
+                .andExpect(jsonPath("$.userPhone").value("010-1234-5678"))
+                .andExpect(jsonPath("$.userOfficePhone").isEmpty());
         // 전화번호가 없으면 null
         long noPhone = createItem(reader, "FOUND", "우산", "");
         mvc.perform(secured(get("/api/items/" + noPhone), writer))
@@ -204,6 +205,17 @@ class BackendIntegrationTests {
         var saved = members.findByLoginId("1109").orElseThrow();
         assertEquals(Role.STUDENT, saved.getRole());
         assertTrue(saved.isMustChangePassword());
+        assertNull(saved.getPhone()); // 전화번호를 비우면 학생이 첫 로그인 때 입력
+
+        // 전화번호를 함께 넣을 수도 있습니다.
+        mvc.perform(secured(post("/api/admin/members"), admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"loginId\":\"1110\",\"name\":\"이영희\",\"phone\":\"01055556666\",\"password\":\"initial-pass\"}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.phone").doesNotExist());
+        assertEquals("010-5555-6666", members.findByLoginId("1110").orElseThrow().getPhone());
+        mvc.perform(secured(post("/api/admin/members"), admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"loginId\":\"1111\",\"name\":\"박철수\",\"phone\":\"123\",\"password\":\"initial-pass\"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("전화번호 형식을 확인해 주세요."));
+        assertFalse(members.existsByLoginId("1111"));
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("1109", "initial-pass")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.user.mustChangePassword").value(true));
 
@@ -248,7 +260,8 @@ class BackendIntegrationTests {
         var request = multipart("/api/images").file(new MockMultipartFile("file", "../photo.png", "image/png", bytes.toByteArray()));
         var response = mvc.perform(secured(request, owner)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         String url = json.readTree(response).get("imageUrl").asText();
-        mvc.perform(get(url)).andExpect(status().isOk()).andExpect(content().contentType(MediaType.IMAGE_JPEG));
+        mvc.perform(get(url)).andExpect(status().isUnauthorized()); // 사진도 토큰이 필요
+        mvc.perform(secured(get(url), other)).andExpect(status().isOk()).andExpect(content().contentType(MediaType.IMAGE_JPEG));
         createItem(owner, "FOUND", "우산", url);
         mvc.perform(secured(post("/api/items"), other).contentType(MediaType.APPLICATION_JSON).content(itemBody("LOST", "우산", url)))
                 .andExpect(status().isForbidden());
@@ -297,6 +310,7 @@ class BackendIntegrationTests {
                 .andExpect(jsonPath("$.role").value("STUDENT"))
                 .andExpect(jsonPath("$.mustChangePassword").value(true))
                 .andExpect(jsonPath("$.phone").isEmpty())
+                .andExpect(jsonPath("$.officePhone").isEmpty())
                 .andExpect(jsonPath("$.email").doesNotExist())
                 .andExpect(jsonPath("$.passwordHash").doesNotExist())
                 .andExpect(header().doesNotExist("Set-Cookie")).andReturn();
@@ -342,25 +356,57 @@ class BackendIntegrationTests {
                         .content(passwordBody("password123!", "new-password-1")))
                 .andExpect(status().isUnauthorized());
     }
+    private org.springframework.test.web.servlet.ResultActions patchMe(String token, String body) throws Exception {
+        return mvc.perform(secured(patch("/api/auth/me"), token).contentType(MediaType.APPLICATION_JSON).content(body));
+    }
     @Test
-    void phoneIsNormalizedAndNullOrEmptyDeletesIt() throws Exception {
+    void phoneIsNormalizedAndCannotBeDeleted() throws Exception {
         String token = student("1109");
-        mvc.perform(secured(patch("/api/auth/me"), token).contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"01012345678\"}"))
+        patchMe(token, "{\"phone\":\"01012345678\"}")
                 .andExpect(status().isOk()).andExpect(jsonPath("$.loginId").value("1109"))
                 .andExpect(jsonPath("$.phone").value("010-1234-5678"))
+                .andExpect(jsonPath("$.officePhone").isEmpty())
                 .andExpect(jsonPath("$.passwordHash").doesNotExist());
-        mvc.perform(secured(patch("/api/auth/me"), token).contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"123\"}"))
+        patchMe(token, "{\"phone\":\"123\"}")
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("전화번호 형식을 확인해 주세요."));
+        // 전화번호는 지울 수 없습니다.
+        for (String body : new String[]{"{\"phone\":\"\"}", "{\"phone\":\"  \"}", "{\"phone\":null}", "{}"}) {
+            patchMe(token, body).andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("전화번호를 입력해주세요."));
+        }
         assertEquals("010-1234-5678", members.findByLoginId("1109").orElseThrow().getPhone());
-        mvc.perform(secured(patch("/api/auth/me"), token).contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.phone").isEmpty());
-        mvc.perform(secured(patch("/api/auth/me"), token).contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"010-9876-5432\"}"))
-                .andExpect(jsonPath("$.phone").value("010-9876-5432"));
-        mvc.perform(secured(patch("/api/auth/me"), token).contentType(MediaType.APPLICATION_JSON).content("{\"phone\":null}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.phone").isEmpty());
-        assertNull(members.findByLoginId("1109").orElseThrow().getPhone());
-        mvc.perform(patch("/api/auth/me").contentType(MediaType.APPLICATION_JSON).content("{\"phone\":null}"))
+        // 학생이 보낸 교무실 번호는 무시합니다.
+        patchMe(token, "{\"phone\":\"010-9876-5432\",\"officePhone\":\"02-123-4567\"}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.phone").value("010-9876-5432"))
+                .andExpect(jsonPath("$.officePhone").isEmpty());
+        mvc.perform(patch("/api/auth/me").contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"01012345678\"}"))
                 .andExpect(status().isUnauthorized());
+    }
+    @Test
+    void adminRegistersOfficeAndMobilePhoneAndBothShowOnAdminItem() throws Exception {
+        String admin = tokenOf("admin", Role.ADMIN);
+        patchMe(admin, "{\"phone\":\"01011112222\"}")
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("교무실 번호를 입력해주세요."));
+        patchMe(admin, "{\"phone\":\"01011112222\",\"officePhone\":\"010-1234-5678\"}")
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("교무실 번호 형식을 확인해 주세요."));
+        patchMe(admin, "{\"officePhone\":\"021234567\"}")
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("전화번호를 입력해주세요."));
+        assertNull(members.findByLoginId("admin").orElseThrow().getPhone());
+        patchMe(admin, "{\"phone\":\"01011112222\",\"officePhone\":\"021234567\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.phone").value("010-1111-2222"))
+                .andExpect(jsonPath("$.officePhone").value("02-123-4567"));
+        patchMe(admin, "{\"phone\":\"01011112222\",\"officePhone\":\"031-1234-5678\"}")
+                .andExpect(jsonPath("$.officePhone").value("031-1234-5678"));
+        mvc.perform(secured(get("/api/auth/me"), admin)).andExpect(jsonPath("$.officePhone").value("031-1234-5678"));
+
+        long adminItem = createItem(admin, "FOUND", "교무실 보관 우산", "");
+        String reader = student("1101");
+        mvc.perform(secured(get("/api/items/" + adminItem), reader)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.userName").value("테스트 학생"))
+                .andExpect(jsonPath("$.userPhone").value("010-1111-2222"))
+                .andExpect(jsonPath("$.userOfficePhone").value("031-1234-5678"));
+        mvc.perform(secured(get("/api/items"), reader))
+                .andExpect(jsonPath("$.content[0].userOfficePhone").doesNotExist());
     }
     @Test
     void tokenIsRequiredAndExpiredTokenHasOwnMessage() throws Exception {
@@ -395,8 +441,11 @@ class BackendIntegrationTests {
                 .andExpect(jsonPath("$.message").value(SecurityConfig.ADMIN_ONLY));
     }
     @Test
-    void imagesAndSwaggerArePublic() throws Exception {
-        mvc.perform(get("/api/images/00000000-0000-0000-0000-000000000000.jpg")).andExpect(status().isNotFound());
+    void imagesNeedTokenButSwaggerIsPublic() throws Exception {
+        String missing = "/api/images/00000000-0000-0000-0000-000000000000.jpg";
+        mvc.perform(get(missing)).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value(SecurityConfig.LOGIN_REQUIRED));
+        mvc.perform(secured(get(missing), student("1101"))).andExpect(status().isNotFound());
         mvc.perform(get("/v3/api-docs")).andExpect(status().isOk());
     }
     @Test

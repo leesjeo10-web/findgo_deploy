@@ -25,8 +25,13 @@ public class Member {
     private String passwordHash;
 
     // 전화번호 (선택, 010-0000-0000 형식). 없으면 null
+    // 학생은 필수(첫 로그인 때 입력할 수 있음), 한 번 넣으면 지울 수 없고 바꾸기만 합니다.
     @Column(length = 13)
     private String phone;
+
+    // 교무실 번호 (관리자만, 02-000-0000 / 031-000-0000 형식). 학생은 null
+    @Column(length = 13)
+    private String officePhone;
 
     // STUDENT / ADMIN. 기존 행이 있는 테이블에 컬럼이 추가될 때를 위해 DB 기본값도 둡니다.
     @Enumerated(EnumType.STRING)
@@ -55,6 +60,7 @@ public class Member {
         this.mustChangePassword = false;
     }
 
-    // null이면 전화번호를 지웁니다.
     public void changePhone(String phone) { this.phone = phone; }
+
+    public void changeOfficePhone(String officePhone) { this.officePhone = officePhone; }
 }

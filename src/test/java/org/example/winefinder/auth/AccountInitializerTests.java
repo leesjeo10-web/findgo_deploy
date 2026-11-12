@@ -52,14 +52,15 @@ class AccountInitializerTests {
         members.saveAndFlush(new Member("1101", "기존 학생", passwords.encode("existing-pass"), Role.STUDENT, false));
         Path csv = dir.resolve("students.csv");
         Files.writeString(csv, String.join("\n",
-                "﻿loginId,name,initialPassword",
-                "1101,덮어쓰기 시도,new-password-1",   // 이미 있는 아이디 → 건너뜀
-                " 1102 , 홍길동 ,pass,word-123",          // 비밀번호의 쉼표 허용
+                "﻿loginId,name,phone,initialPassword",
+                "1101,덮어쓰기 시도,,new-password-1",           // 이미 있는 아이디 → 건너뜀
+                " 1102 , 홍길동 , 01012345678 ,pass,word-123",  // 전화번호 정규화, 비밀번호의 쉼표 허용
                 "",
-                "abc1,잘못된 아이디,password-123",        // 형식 오류 → 건너뜀
-                "261105,예전 6자리,password-123",        // 4자리가 아님 → 건너뜀
-                "1103,짧은 비번,short",                 // 8자 미만 → 건너뜀
-                "1104,김철수,password-456"), StandardCharsets.UTF_8);
+                "abc1,잘못된 아이디,,password-123",             // 형식 오류 → 건너뜀
+                "261105,예전 6자리,,password-123",             // 4자리가 아님 → 건너뜀
+                "1103,짧은 비번,,short",                       // 8자 미만 → 건너뜀
+                "1105,번호 오류,123,password-123",             // 전화번호 형식 오류 → 건너뜀
+                "1104,김철수,,password-456"), StandardCharsets.UTF_8);  // 전화번호 없음 → 첫 로그인 때 입력
 
         initializer("", csv.toString()).run(null);
 
@@ -73,7 +74,9 @@ class AccountInitializerTests {
         assertEquals(Role.STUDENT, hong.getRole());
         assertTrue(hong.isMustChangePassword());
         assertTrue(passwords.matches("pass,word-123", hong.getPasswordHash()));
-        assertTrue(members.existsByLoginId("1104"));
+        assertEquals("010-1234-5678", hong.getPhone());
+        assertNull(members.findByLoginId("1104").orElseThrow().getPhone());
+        assertFalse(members.existsByLoginId("1105"));
         assertFalse(members.existsByLoginId("1103"));
         assertFalse(members.existsByLoginId("261105"));
     }

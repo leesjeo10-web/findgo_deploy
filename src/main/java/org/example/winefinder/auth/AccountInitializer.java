@@ -11,16 +11,18 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 
 // 앱이 시작될 때 계정을 준비합니다.
 // 1) 선생님(관리자) admin 계정이 없으면 ADMIN_INITIAL_PASSWORD로 만듭니다. 값이 없으면 경고 로그만 남깁니다.
-// 2) STUDENTS_CSV에 파일 경로가 있으면 loginId,name,initialPassword 형식으로 읽어 없는 아이디만 추가합니다.
+// 2) STUDENTS_CSV에 파일 경로가 있으면 loginId,name,phone,initialPassword 형식으로 읽어 없는 아이디만 추가합니다.
+//    phone은 비워도 됩니다(학생이 첫 로그인 때 입력).
 @Slf4j
 @Component
 public class AccountInitializer implements ApplicationRunner {
     static final String ADMIN_LOGIN_ID = "admin";
     static final String ADMIN_NAME = "선생님";
-    private static final String CSV_HEADER = "loginId,name,initialPassword";
+    private static final String CSV_HEADER = "loginId,name,phone,initialPassword";
 
     private final MemberRepository members;
     private final PasswordEncoder passwords;
@@ -66,12 +68,19 @@ public class AccountInitializer implements ApplicationRunner {
         for (int i = 0; i < lines.size(); i++) {
             String line = i == 0 ? lines.get(i).replace("﻿", "") : lines.get(i); // 엑셀 UTF-8 BOM 제거
             if (line.isBlank() || (i == 0 && line.strip().equalsIgnoreCase(CSV_HEADER))) continue;
-            // 비밀번호에 쉼표가 들어 있어도 되도록 세 칸까지만 나눕니다. 비밀번호는 공백을 지우지 않습니다.
-            String[] cols = line.split(",", 3);
+            // 비밀번호에 쉼표가 들어 있어도 되도록 네 칸까지만 나눕니다. 비밀번호는 공백을 지우지 않습니다.
+            String[] cols = line.split(",", 4);
             String loginId = cols.length > 0 ? cols[0].strip() : "";
             String name = cols.length > 1 ? cols[1].strip() : "";
-            String password = cols.length > 2 ? cols[2] : "";
-            if (!loginId.matches("\\d{4}") || name.isEmpty() || name.length() > 40
+            String phone = null;
+            boolean phoneOk = true;
+            try {
+                phone = AuthService.normalizePhone(cols.length > 2 ? cols[2] : "");
+            } catch (ResponseStatusException e) {
+                phoneOk = false;
+            }
+            String password = cols.length > 3 ? cols[3] : "";
+            if (!loginId.matches("\\d{4}") || name.isEmpty() || name.length() > 40 || !phoneOk
                     || password.length() < 8 || password.length() > 64) {
                 log.warn("STUDENTS_CSV {}번째 줄은 형식이 맞지 않아 건너뜁니다.", i + 1); // 비밀번호는 로그에 남기지 않음
                 skipped++;
@@ -81,7 +90,9 @@ public class AccountInitializer implements ApplicationRunner {
                 skipped++;
                 continue;
             }
-            members.saveAndFlush(new Member(loginId, name, passwords.encode(password), Role.STUDENT, true));
+            Member student = new Member(loginId, name, passwords.encode(password), Role.STUDENT, true);
+            student.changePhone(phone);
+            members.saveAndFlush(student);
             added++;
         }
         log.info("STUDENTS_CSV 학생 등록: 추가 {}명, 건너뜀 {}줄", added, skipped);

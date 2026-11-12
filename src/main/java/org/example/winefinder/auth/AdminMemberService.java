@@ -27,7 +27,8 @@ public class AdminMemberService {
     // 학생 추가. 아이디·이름은 앞뒤 공백을 지우고, 비밀번호는 그대로 씁니다.
     // 처음 로그인하면 비밀번호를 바꾸도록 mustChangePassword=true로 만듭니다.
     @Transactional
-    public Member addStudent(String loginId, String name, String password) {
+    // 전화번호는 선택입니다. 비우면 학생이 첫 로그인 때 입력합니다.
+    public Member addStudent(String loginId, String name, String phone, String password) {
         String id = loginId == null ? "" : loginId.strip();
         String trimmedName = name == null ? "" : name.strip();
         if (id.isEmpty()) throw badRequest("아이디를 입력해주세요.");
@@ -36,9 +37,12 @@ public class AdminMemberService {
         if (trimmedName.length() > 40) throw badRequest("이름은 40자 이하로 입력해주세요.");
         if (password == null || password.isEmpty()) throw badRequest("비밀번호를 입력해주세요.");
         if (password.length() < 8 || password.length() > 64) throw badRequest("비밀번호는 8~64자로 입력해주세요.");
+        String normalizedPhone = AuthService.normalizePhone(phone);
         if (members.existsByLoginId(id)) throw duplicate();
         try {
-            return members.saveAndFlush(new Member(id, trimmedName, passwords.encode(password), Role.STUDENT, true));
+            Member student = new Member(id, trimmedName, passwords.encode(password), Role.STUDENT, true);
+            student.changePhone(normalizedPhone);
+            return members.saveAndFlush(student);
         } catch (DataIntegrityViolationException e) { // 동시에 같은 아이디를 추가한 경우
             throw duplicate();
         }

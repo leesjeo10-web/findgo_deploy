@@ -63,13 +63,23 @@ public class AuthService {
         member.changePassword(passwords.encode(newPassword));
     }
 
-    // 내 전화번호 변경. null이나 빈 값이면 지웁니다.
+    // 내 연락처 변경. 전화번호는 지울 수 없고 바꾸기만 합니다(물품이 찾는 중이든 해결 완료든 같음).
+    // 관리자는 교무실 번호도 함께 필수로 바꿉니다. 학생이 보낸 officePhone은 무시합니다.
     @Transactional
-    public Member changePhone(Authentication authentication, String phone) {
+    public Member changePhone(Authentication authentication, String phone, String officePhone) {
         Member member = current(authentication);
-        member.changePhone(normalizePhone(phone));
+        String normalized = normalizePhone(phone);
+        if (normalized == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, PHONE_REQUIRED);
+        if (member.isAdmin()) {
+            String office = normalizeOfficePhone(officePhone);
+            if (office == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "교무실 번호를 입력해주세요.");
+            member.changeOfficePhone(office);
+        }
+        member.changePhone(normalized);
         return member;
     }
+
+    static final String PHONE_REQUIRED = "전화번호를 입력해주세요.";
 
     private static ResponseStatusException unauthorized() {
         return new ResponseStatusException(HttpStatus.UNAUTHORIZED, SecurityConfig.LOGIN_REQUIRED);
@@ -85,5 +95,17 @@ public class AuthService {
         }
         int mid = digits.length() - 4;
         return digits.substring(0, 3) + "-" + digits.substring(3, mid) + "-" + digits.substring(mid);
+    }
+
+    // 교무실(일반 전화) 번호: 02-123-4567, 031-1234-5678 모양으로 맞춥니다. 비어 있으면 null
+    public static String normalizeOfficePhone(String phone) {
+        if (phone == null || phone.isBlank()) return null;
+        String digits = phone.replaceAll("\\D", "");
+        int area;
+        if (digits.matches("02\\d{7,8}")) area = 2;
+        else if (digits.matches("0(3[1-3]|4[1-4]|5[1-5]|6[1-4]|70)\\d{7,8}")) area = 3;
+        else throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "교무실 번호 형식을 확인해 주세요.");
+        int mid = digits.length() - 4;
+        return digits.substring(0, area) + "-" + digits.substring(area, mid) + "-" + digits.substring(mid);
     }
 }

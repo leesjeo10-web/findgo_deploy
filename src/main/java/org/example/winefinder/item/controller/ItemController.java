@@ -44,7 +44,7 @@ public class ItemController {
                                      @RequestParam(required = false) @Parameter(description = "추천 결과에서 제외할 물품 ID. 수정 중인 글에 사용", example = "1") Long excludeId) {
         return items.similar(name, type, excludeId);
     }
-    @Operation(summary = "물품 상세 조회", description = "토큰이 필요합니다. 작성자 이름(userName)과 전화번호(userPhone)를 함께 반환합니다. 존재하지 않는 ID는 404입니다.")
+    @Operation(summary = "물품 상세 조회", description = "토큰이 필요합니다. 작성자 이름(userName)과 휴대전화(userPhone)를 함께 반환합니다. 관리자가 쓴 글은 교무실 번호(userOfficePhone)도 반환합니다. 존재하지 않는 ID는 404입니다.")
     @GetMapping("/{id}")
     public ItemDetailResponse findById(@PathVariable @Parameter(description = "물품 ID", example = "1") Long id) { return items.findById(id); }
     @Operation(summary = "물품 전체 수정", description = "작성자만 수정할 수 있습니다. 선택 필드를 비우면 기존 값도 제거합니다. 다른 작성자의 글은 403입니다.")

@@ -49,7 +49,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(r -> r
                         // 토큰 없이 쓸 수 있는 경로
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/images/*").permitAll()
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
