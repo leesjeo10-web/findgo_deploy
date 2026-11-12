@@ -170,6 +170,71 @@ class BackendIntegrationTests {
         assertFalse(items.existsById(id));
         mvc.perform(secured(delete("/api/items/" + id), admin)).andExpect(status().isNotFound());
     }
+    private String studentBody(String loginId, String name, String password) {
+        var body = new java.util.HashMap<String, String>();
+        body.put("loginId", loginId); body.put("name", name); body.put("password", password);
+        return json.writeValueAsString(body);
+    }
+    @Test
+    void adminListsStudentsWithoutAdminInLoginIdOrder() throws Exception {
+        String admin = tokenOf("admin", Role.ADMIN);
+        members.saveAndFlush(new Member("1203", "다학생", "{noop}x", Role.STUDENT, true));
+        members.saveAndFlush(new Member("1101", "가학생", "{noop}x", Role.STUDENT, true));
+        members.saveAndFlush(new Member("1109", "나학생", "{noop}x", Role.STUDENT, false));
+        mvc.perform(secured(get("/api/admin/members"), admin)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].loginId").value("1101"))
+                .andExpect(jsonPath("$[1].loginId").value("1109"))
+                .andExpect(jsonPath("$[2].loginId").value("1203"))
+                .andExpect(jsonPath("$[0].name").value("가학생"))
+                .andExpect(jsonPath("$[0].id").isNumber())
+                .andExpect(jsonPath("$[0].passwordHash").doesNotExist())
+                .andExpect(jsonPath("$[0].phone").doesNotExist());
+    }
+    @Test
+    void adminAddsStudentWhoMustChangePassword() throws Exception {
+        String admin = tokenOf("admin", Role.ADMIN);
+        mvc.perform(secured(post("/api/admin/members"), admin).contentType(MediaType.APPLICATION_JSON)
+                        .content(studentBody(" 1109 ", " 김민수 ", "initial-pass")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.loginId").value("1109"))
+                .andExpect(jsonPath("$.name").value("김민수"))
+                .andExpect(jsonPath("$.password").doesNotExist());
+        var saved = members.findByLoginId("1109").orElseThrow();
+        assertEquals(Role.STUDENT, saved.getRole());
+        assertTrue(saved.isMustChangePassword());
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("1109", "initial-pass")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.user.mustChangePassword").value(true));
+
+        mvc.perform(secured(post("/api/admin/members"), admin).contentType(MediaType.APPLICATION_JSON)
+                        .content(studentBody("1109", "다른 학생", "initial-pass")))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.message").value("이미 등록된 아이디입니다."));
+        mvc.perform(secured(post("/api/admin/members"), student("1201")).contentType(MediaType.APPLICATION_JSON)
+                        .content(studentBody("1301", "학생", "initial-pass")))
+                .andExpect(status().isForbidden());
+        assertFalse(members.existsByLoginId("1301"));
+    }
+    @Test
+    void addStudentValidatesLoginIdNameAndPassword() throws Exception {
+        String admin = tokenOf("admin", Role.ADMIN);
+        String[][] cases = {
+                {"261109", "김민수", "initial-pass", "아이디는 숫자 4자리로 입력해주세요."},
+                {"abcd", "김민수", "initial-pass", "아이디는 숫자 4자리로 입력해주세요."},
+                {"admin", "김민수", "initial-pass", "아이디는 숫자 4자리로 입력해주세요."},
+                {"  ", "김민수", "initial-pass", "아이디를 입력해주세요."},
+                {"1109", "   ", "initial-pass", "이름을 입력해주세요."},
+                {"1109", "가".repeat(41), "initial-pass", "이름은 40자 이하로 입력해주세요."},
+                {"1109", "김민수", null, "비밀번호를 입력해주세요."},
+                {"1109", "김민수", "short7!", "비밀번호는 8~64자로 입력해주세요."},
+                {"1109", "김민수", "a".repeat(65), "비밀번호는 8~64자로 입력해주세요."}};
+        for (String[] c : cases) {
+            mvc.perform(secured(post("/api/admin/members"), admin).contentType(MediaType.APPLICATION_JSON)
+                            .content(studentBody(c[0], c[1], c[2])))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value(c[3]));
+        }
+        assertEquals(1, members.count()); // admin만 있음
+    }
     @Test
     void homeApiIsRemoved() throws Exception {
         mvc.perform(secured(get("/api/home"), student("1101"))).andExpect(status().isNotFound());
