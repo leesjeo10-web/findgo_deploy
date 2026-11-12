@@ -6,14 +6,19 @@ import java.nio.file.*;
 import java.time.LocalDate;
 import java.util.Map;
 import javax.imageio.ImageIO;
-import org.example.winefinder.auth.MemberRepository;
+import java.time.Instant;
+import org.example.winefinder.auth.*;
+import org.example.winefinder.config.SecurityConfig;
 import org.example.winefinder.image.ImageRepository;
 import org.example.winefinder.item.repository.ItemRepository;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.*;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.*;
 import org.springframework.test.context.*;
 import org.springframework.test.web.servlet.*;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
@@ -40,6 +45,9 @@ class BackendIntegrationTests {
     @Autowired MemberRepository members;
     @Autowired ItemRepository items;
     @Autowired ImageRepository images;
+    @Autowired PasswordEncoder passwords;
+    @Autowired JwtService jwt;
+    @Autowired JwtEncoder encoder;
     MockMvc mvc;
 
     @BeforeEach
@@ -53,26 +61,22 @@ class BackendIntegrationTests {
             for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
         }
     }
-    private AbstractMockHttpServletRequestBuilder<?> secured(AbstractMockHttpServletRequestBuilder<?> request, MockHttpSession session) throws Exception {
-        var csrf = json.readTree(mvc.perform(get("/api/auth/csrf").session(session)).andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString());
-        return request.session(session).header(csrf.get("headerName").asText(), csrf.get("token").asText());
+    // Authorization: Bearer {토큰} 헤더를 붙입니다.
+    private AbstractMockHttpServletRequestBuilder<?> secured(AbstractMockHttpServletRequestBuilder<?> request, String token) {
+        return request.header("Authorization", "Bearer " + token);
     }
-    private MockHttpSession signupAndLogin(String loginId) throws Exception {
-        var session = new MockHttpSession();
-        mvc.perform(secured(post("/api/auth/signup"), session).contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(Map.of("loginId", loginId, "name", "테스트 학생", "password", "password123!"))))
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.passwordHash").doesNotExist());
-        mvc.perform(secured(post("/api/auth/login"), session).param("loginId", loginId).param("password", "password123!"))
-                .andExpect(status().isNoContent());
-        return session;
+    // DB에 회원을 만들고 그 회원의 토큰을 발급합니다. (로그인 API는 4단계에서 추가)
+    private String tokenOf(String loginId, Role role) {
+        var member = members.saveAndFlush(new Member(loginId, "테스트 학생", passwords.encode("password123!"), role, role == Role.STUDENT));
+        return jwt.issue(member);
     }
+    private String student(String loginId) { return tokenOf(loginId, Role.STUDENT); }
     private String itemBody(String type, String name, String imageUrl) {
         return json.writeValueAsString(Map.of("type", type, "name", name, "description", "물품 특징", "location", "도서관",
                 "storageLocation", "학생회실", "lostFoundAt", LocalDate.now().toString(), "status", "OPEN", "imageUrl", imageUrl));
     }
-    private long createItem(MockHttpSession session, String type, String name, String imageUrl) throws Exception {
-        var response = mvc.perform(secured(post("/api/items"), session).contentType(MediaType.APPLICATION_JSON)
+    private long createItem(String token, String type, String name, String imageUrl) throws Exception {
+        var response = mvc.perform(secured(post("/api/items"), token).contentType(MediaType.APPLICATION_JSON)
                         .content(itemBody(type, name, imageUrl)))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.userId").isNumber())
                 .andReturn().getResponse().getContentAsString();
@@ -80,52 +84,12 @@ class BackendIntegrationTests {
     }
 
     @Test
-    void signupLoginMeAndLogoutUseRealAuthentication() throws Exception {
-        var session = signupAndLogin("261109");
-        var member = members.findByLoginId("261109").orElseThrow();
-        assertNotEquals("password123!", member.getPasswordHash());
-        assertTrue(member.getPasswordHash().startsWith("{pbkdf2"));
-        mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.loginId").value("261109"))
-                .andExpect(jsonPath("$.role").value("STUDENT"))
-                .andExpect(jsonPath("$.mustChangePassword").value(true))
-                .andExpect(jsonPath("$.phone").isEmpty())
-                .andExpect(jsonPath("$.email").doesNotExist())
-                .andExpect(jsonPath("$.passwordHash").doesNotExist());
-        mvc.perform(secured(post("/api/auth/logout"), session)).andExpect(status().isNoContent());
-        mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
-    }
-    @Test
-    void rejectsDuplicateInvalidSignupAndWrongPassword() throws Exception {
-        signupAndLogin("261109");
-        var s = new MockHttpSession();
-        mvc.perform(secured(post("/api/auth/signup"), s).contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(Map.of("loginId", "261109", "name", "학생", "password", "password123!"))))
-                .andExpect(status().isConflict());
-        mvc.perform(secured(post("/api/auth/signup"), s).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"loginId\":\"abc\",\"name\":\"\",\"password\":\"123\"}"))
-                .andExpect(status().isBadRequest());
-        mvc.perform(secured(post("/api/auth/login"), s).param("loginId", "261109").param("password", "wrong-password"))
-                .andExpect(status().isUnauthorized());
-    }
-    @Test
-    void unauthenticatedWritesAndMissingCsrfAreRejected() throws Exception {
-        mvc.perform(get("/api/items")).andExpect(status().isOk());
-        mvc.perform(post("/api/items").contentType(MediaType.APPLICATION_JSON).content(itemBody("LOST", "우산", "")))
-                .andExpect(status().isForbidden());
-        mvc.perform(secured(post("/api/items"), new MockHttpSession()).contentType(MediaType.APPLICATION_JSON)
-                .content(itemBody("LOST", "우산", ""))).andExpect(status().isUnauthorized());
-        var s = signupAndLogin("261101");
-        mvc.perform(post("/api/items").session(s).contentType(MediaType.APPLICATION_JSON).content(itemBody("LOST", "우산", "")))
-                .andExpect(status().isForbidden());
-    }
-    @Test
     void ownerCanManageItemsButOtherMemberCannot() throws Exception {
-        var owner = signupAndLogin("261101");
-        var other = signupAndLogin("261102");
+        var owner = student("261101");
+        var other = student("261102");
         long id = createItem(owner, "LOST", "우산", "");
-        mvc.perform(get("/api/me/items").session(owner)).andExpect(jsonPath("$.content.length()").value(1));
-        mvc.perform(get("/api/me/items").session(other)).andExpect(jsonPath("$.content.length()").value(0));
+        mvc.perform(secured(get("/api/me/items"), owner)).andExpect(jsonPath("$.content.length()").value(1));
+        mvc.perform(secured(get("/api/me/items"), other)).andExpect(jsonPath("$.content.length()").value(0));
         mvc.perform(secured(put("/api/items/" + id), other).contentType(MediaType.APPLICATION_JSON)
                 .content(itemBody("FOUND", "변경", ""))).andExpect(status().isForbidden());
         mvc.perform(secured(delete("/api/items/" + id), other)).andExpect(status().isForbidden());
@@ -136,31 +100,31 @@ class BackendIntegrationTests {
         mvc.perform(secured(patch("/api/items/" + id + "/status"), owner).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"status\":\"RESOLVED\"}")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("RESOLVED"));
         mvc.perform(secured(delete("/api/items/" + id), owner)).andExpect(status().isNoContent());
-        mvc.perform(get("/api/items/" + id)).andExpect(status().isNotFound());
+        mvc.perform(secured(get("/api/items/" + id), owner)).andExpect(status().isNotFound());
     }
     @Test
     void searchFiltersSortingStatisticsAndRecommendations() throws Exception {
-        var s = signupAndLogin("261101");
+        var s = student("261101");
         long first = createItem(s, "LOST", "검정 우산", "");
         long second = createItem(s, "FOUND", "검정 우산 50%_!", "");
         createItem(s, "FOUND", "파랑 가방", "");
-        mvc.perform(get("/api/items").param("keyword", "50%_!").param("type", "FOUND").param("status", "OPEN"))
+        mvc.perform(secured(get("/api/items").param("keyword", "50%_!").param("type", "FOUND").param("status", "OPEN"), s))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(second));
-        mvc.perform(get("/api/items").param("sort", "oldest").param("size", "1"))
+        mvc.perform(secured(get("/api/items").param("sort", "oldest").param("size", "1"), s))
                 .andExpect(jsonPath("$.content[0].id").value(first)).andExpect(jsonPath("$.totalElements").value(3));
-        mvc.perform(get("/api/items").param("keyword", "도서관")).andExpect(jsonPath("$.totalElements").value(3));
-        mvc.perform(get("/api/items/similar").param("name", "검정 우산").param("type", "LOST"))
+        mvc.perform(secured(get("/api/items").param("keyword", "도서관"), s)).andExpect(jsonPath("$.totalElements").value(3));
+        mvc.perform(secured(get("/api/items/similar").param("name", "검정 우산").param("type", "LOST"), s))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(second)).andExpect(jsonPath("$.length()").value(1));
-        mvc.perform(get("/api/home")).andExpect(jsonPath("$.total").value(3)).andExpect(jsonPath("$.lost").value(1))
+        mvc.perform(secured(get("/api/home"), s)).andExpect(jsonPath("$.total").value(3)).andExpect(jsonPath("$.lost").value(1))
                 .andExpect(jsonPath("$.found").value(2));
-        mvc.perform(get("/api/items").param("size", "101")).andExpect(status().isBadRequest());
-        mvc.perform(get("/api/items").param("sort", "invalid")).andExpect(status().isBadRequest());
+        mvc.perform(secured(get("/api/items").param("size", "101"), s)).andExpect(status().isBadRequest());
+        mvc.perform(secured(get("/api/items").param("sort", "invalid"), s)).andExpect(status().isBadRequest());
     }
     @Test
     void uploadReencodesImageAndChecksOwnership() throws Exception {
-        var owner = signupAndLogin("261101");
-        var other = signupAndLogin("261102");
+        var owner = student("261101");
+        var other = student("261102");
         var bytes = new ByteArrayOutputStream();
         ImageIO.write(new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB), "png", bytes);
         var request = multipart("/api/images").file(new MockMultipartFile("file", "../photo.png", "image/png", bytes.toByteArray()));
@@ -176,10 +140,59 @@ class BackendIntegrationTests {
                 .content(itemBody("LOST", "우산", "https://example.com/pic.png"))).andExpect(status().isBadRequest());
     }
     @Test
+    void meReturnsMemberOfTokenWithoutSession() throws Exception {
+        String token = student("261109");
+        var result = mvc.perform(secured(get("/api/auth/me"), token)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.loginId").value("261109"))
+                .andExpect(jsonPath("$.role").value("STUDENT"))
+                .andExpect(jsonPath("$.mustChangePassword").value(true))
+                .andExpect(jsonPath("$.phone").isEmpty())
+                .andExpect(jsonPath("$.email").doesNotExist())
+                .andExpect(jsonPath("$.passwordHash").doesNotExist())
+                .andExpect(header().doesNotExist("Set-Cookie")).andReturn();
+        assertNull(result.getRequest().getSession(false)); // STATELESS: 세션을 만들지 않음
+    }
+    @Test
+    void tokenIsRequiredAndExpiredTokenHasOwnMessage() throws Exception {
+        mvc.perform(get("/api/items")).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value(SecurityConfig.LOGIN_REQUIRED));
+        mvc.perform(get("/api/items/1")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/items").contentType(MediaType.APPLICATION_JSON).content(itemBody("LOST", "우산", "")))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(secured(get("/api/items"), "not-a-jwt")).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value(SecurityConfig.LOGIN_REQUIRED));
+
+        var member = members.saveAndFlush(new Member("261101", "학생", passwords.encode("password123!"), Role.STUDENT, true));
+        var claims = JwtClaimsSet.builder().subject(String.valueOf(member.getId())).claim("role", "STUDENT")
+                .issuedAt(Instant.now().minusSeconds(7200)).expiresAt(Instant.now().minusSeconds(3600)).build();
+        String expired = encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
+        mvc.perform(secured(get("/api/items"), expired)).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value(SecurityConfig.LOGIN_EXPIRED));
+    }
+    @Test
+    void validTokenOfDeletedMemberIsUnauthorized() throws Exception {
+        String token = student("261101");
+        members.deleteAll();
+        mvc.perform(secured(get("/api/auth/me"), token)).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value(SecurityConfig.LOGIN_REQUIRED));
+    }
+    @Test
+    void adminPathsRejectStudents() throws Exception {
+        mvc.perform(get("/api/admin/members")).andExpect(status().isUnauthorized());
+        mvc.perform(secured(get("/api/admin/members"), student("261101"))).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value(SecurityConfig.ADMIN_ONLY));
+    }
+    @Test
+    void imagesAndSwaggerArePublic() throws Exception {
+        mvc.perform(get("/api/images/00000000-0000-0000-0000-000000000000.jpg")).andExpect(status().isNotFound());
+        mvc.perform(get("/v3/api-docs")).andExpect(status().isOk());
+    }
+    @Test
     void corsAllowsOnlyConfiguredFrontend() throws Exception {
         mvc.perform(options("/api/items").header("Origin", "http://localhost:5173")
-                .header("Access-Control-Request-Method", "POST").header("Access-Control-Request-Headers", "X-CSRF-TOKEN,Content-Type"))
-                .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+                .header("Access-Control-Request-Method", "POST").header("Access-Control-Request-Headers", "Authorization,Content-Type"))
+                .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
+                .andExpect(header().doesNotExist("Access-Control-Allow-Credentials"));
         mvc.perform(options("/api/items").header("Origin", "https://unknown.example")
                 .header("Access-Control-Request-Method", "POST")).andExpect(status().isForbidden());
     }

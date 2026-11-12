@@ -1,7 +1,9 @@
 package org.example.winefinder.auth;
 
 import lombok.RequiredArgsConstructor;
+import org.example.winefinder.config.SecurityConfig;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -30,14 +32,22 @@ public class AuthService {
     }
 
     // 현재 authentication에 맞는 회원 조회
+    // 토큰의 subject(회원 id)로 찾습니다. 토큰은 유효해도 회원이 삭제됐으면 401입니다.
     public Member current(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()
-                || "anonymousUser".equals(authentication.getPrincipal())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요한 기능입니다."); // HttpStatus.UNAUTHORIZED - 401
+        if (authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt)) {
+            throw unauthorized(); // HttpStatus.UNAUTHORIZED - 401
         }
-        return members.findByLoginId(authentication.getName())
-                //authentication.getName() - 로그인 사용자의 아이디 (loginId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요한 기능입니다."));
+        Long id;
+        try {
+            id = Long.valueOf(jwt.getSubject());
+        } catch (NumberFormatException e) {
+            throw unauthorized();
+        }
+        return members.findById(id).orElseThrow(AuthService::unauthorized);
+    }
+
+    private static ResponseStatusException unauthorized() {
+        return new ResponseStatusException(HttpStatus.UNAUTHORIZED, SecurityConfig.LOGIN_REQUIRED);
     }
 
     // 01012345678, 010-1234-5678 어떻게 써도 010-1234-5678 모양으로 맞춰서 저장

@@ -24,7 +24,7 @@ public class ImageController {
     public record ImageUploadResponse(
             @Schema(description = "물품 등록·수정 시 imageUrl에 넣을 사진 경로", example = "/api/images/123e4567-e89b-12d3-a456-426614174000.jpg") String imageUrl) {}
 
-    @Operation(summary = "물품 사진 업로드", description = "로그인과 CSRF 토큰이 필요합니다. file 필드에 JPG/PNG 사진 한 장을 전송하세요. 5MB·2천만 화소 이하를 허용하고 긴 변 최대 1600px JPEG로 저장합니다. WEBP는 프론트에서 JPEG로 변환하세요.")
+    @Operation(summary = "물품 사진 업로드", description = "로그인이 필요합니다. file 필드에 JPG/PNG 사진 한 장을 전송하세요. 5MB·2천만 화소 이하를 허용하고 긴 변 최대 1600px JPEG로 저장합니다. WEBP는 프론트에서 JPEG로 변환하세요.")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public ImageUploadResponse upload(@RequestParam @Parameter(description = "5MB 이하의 JPG 또는 PNG 사진 한 장") MultipartFile file, @Parameter(hidden = true) Authentication user) {

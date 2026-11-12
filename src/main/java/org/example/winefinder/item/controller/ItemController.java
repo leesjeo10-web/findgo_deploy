@@ -24,7 +24,7 @@ public class ItemController {
     private final ItemService items;
     private final AuthService auth;
 
-    @Operation(summary = "물품 등록", description = "로그인과 CSRF 토큰이 필요합니다. 작성자는 서버에서 지정하며 사진은 먼저 업로드한 imageUrl을 사용합니다. 성공 시 201입니다.")
+    @Operation(summary = "물품 등록", description = "로그인이 필요합니다. 작성자는 서버에서 지정하며 사진은 먼저 업로드한 imageUrl을 사용합니다. 성공 시 201입니다.")
     @PostMapping
     public ResponseEntity<ItemResponse> create(@RequestBody ItemCreateRequest request, @Parameter(hidden = true) Authentication user) {
         var response = items.create(request, auth.current(user).getId());
@@ -47,19 +47,19 @@ public class ItemController {
     @Operation(summary = "물품 상세 조회", description = "로그인 없이 조회할 수 있습니다. 존재하지 않는 ID는 404입니다.")
     @GetMapping("/{id}")
     public ItemResponse findById(@PathVariable @Parameter(description = "물품 ID", example = "1") Long id) { return items.findById(id); }
-    @Operation(summary = "물품 전체 수정", description = "로그인한 작성자만 수정할 수 있습니다. CSRF 토큰이 필요하며 선택 필드를 비우면 기존 값도 제거합니다. 다른 작성자의 글은 403입니다.")
+    @Operation(summary = "물품 전체 수정", description = "로그인한 작성자만 수정할 수 있습니다. 선택 필드를 비우면 기존 값도 제거합니다. 다른 작성자의 글은 403입니다.")
     @PutMapping("/{id}")
     public ItemResponse update(@PathVariable @Parameter(description = "물품 ID", example = "1") Long id, @RequestBody ItemUpdateRequest request, @Parameter(hidden = true) Authentication user) {
         return items.update(id, request, auth.current(user).getId());
     }
     public record StatusRequest(
             @Schema(description = "OPEN=찾는 중, RESOLVED=해결 완료", example = "RESOLVED", requiredMode = Schema.RequiredMode.REQUIRED) ItemStatus status) {}
-    @Operation(summary = "해결 상태 변경", description = "로그인한 작성자가 OPEN 또는 RESOLVED로 변경합니다. CSRF 토큰이 필요합니다.")
+    @Operation(summary = "해결 상태 변경", description = "로그인한 작성자가 OPEN 또는 RESOLVED로 변경합니다.")
     @PatchMapping("/{id}/status")
     public ItemResponse status(@PathVariable @Parameter(description = "물품 ID", example = "1") Long id, @RequestBody StatusRequest request, @Parameter(hidden = true) Authentication user) {
         return items.status(id, request.status(), auth.current(user).getId());
     }
-    @Operation(summary = "물품 삭제", description = "로그인한 작성자만 삭제할 수 있습니다. CSRF 토큰이 필요하며 성공하면 본문 없이 204를 반환합니다.")
+    @Operation(summary = "물품 삭제", description = "로그인한 작성자만 삭제할 수 있습니다. 성공하면 본문 없이 204를 반환합니다.")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable @Parameter(description = "물품 ID", example = "1") Long id, @Parameter(hidden = true) Authentication user) {
         items.delete(id, auth.current(user).getId());
