@@ -46,6 +46,31 @@ public class AuthService {
         return members.findById(id).orElseThrow(AuthService::unauthorized);
     }
 
+    // 내 비밀번호 변경. 관리자 계정은 화면에서 바꿀 수 없습니다(403).
+    // 새 비밀번호 길이 → 현재 비밀번호 순서로 확인합니다. 비밀번호는 공백을 지우지 않습니다.
+    @Transactional
+    public void changePassword(Authentication authentication, String currentPassword, String newPassword) {
+        Member member = current(authentication);
+        if (member.isAdmin()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "관리자 계정의 비밀번호는 화면에서 변경할 수 없습니다.");
+        }
+        if (newPassword == null || newPassword.length() < 8 || newPassword.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호는 8~64자로 입력해주세요.");
+        }
+        if (currentPassword == null || !passwords.matches(currentPassword, member.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "현재 비밀번호가 올바르지 않습니다.");
+        }
+        member.changePassword(passwords.encode(newPassword));
+    }
+
+    // 내 전화번호 변경. null이나 빈 값이면 지웁니다.
+    @Transactional
+    public Member changePhone(Authentication authentication, String phone) {
+        Member member = current(authentication);
+        member.changePhone(normalizePhone(phone));
+        return member;
+    }
+
     private static ResponseStatusException unauthorized() {
         return new ResponseStatusException(HttpStatus.UNAUTHORIZED, SecurityConfig.LOGIN_REQUIRED);
     }

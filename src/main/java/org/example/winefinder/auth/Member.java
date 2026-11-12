@@ -48,4 +48,13 @@ public class Member {
     }
 
     public boolean isAdmin() { return role == Role.ADMIN; }
+
+    // 비밀번호를 바꾸면 더 이상 변경 화면으로 보내지 않습니다.
+    public void changePassword(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
+        this.mustChangePassword = false;
+    }
+
+    // null이면 전화번호를 지웁니다.
+    public void changePhone(String phone) { this.phone = phone; }
 }

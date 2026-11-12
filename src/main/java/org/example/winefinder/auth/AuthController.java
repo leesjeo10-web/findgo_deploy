@@ -2,15 +2,17 @@ package org.example.winefinder.auth;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-@Tag(name = "회원 인증", description = "로그인, 내 정보")
+@Tag(name = "회원 인증", description = "로그인, 내 정보, 비밀번호·전화번호 변경")
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor // 생성자 자동 생성 (final 붙여진거)
@@ -47,6 +49,15 @@ public class AuthController {
             @Schema(description = "토큰 유효 시간(초)", example = "3600") long expiresIn,
             @Schema(description = "로그인한 회원") LoginUser user) {}
 
+    @Schema(description = "비밀번호 변경 입력 정보")
+    public record PasswordChangeRequest(
+            @Schema(description = "현재 비밀번호", example = "initial-password", accessMode = Schema.AccessMode.WRITE_ONLY, requiredMode = Schema.RequiredMode.REQUIRED) String currentPassword,
+            @Schema(description = "새 비밀번호 (8~64자)", example = "new-password-1", accessMode = Schema.AccessMode.WRITE_ONLY, requiredMode = Schema.RequiredMode.REQUIRED) String newPassword) {}
+
+    @Schema(description = "전화번호 변경 입력 정보")
+    public record PhoneChangeRequest(
+            @Schema(description = "전화번호. 01012345678, 010-1234-5678 모두 가능. null이나 빈 값이면 삭제", example = "010-1234-5678", nullable = true) String phone) {}
+
     @Operation(summary = "로그인", description = "토큰 없이 호출합니다. 아이디·비밀번호가 맞으면 accessToken을 발급합니다. "
             + "틀리면 어느 쪽이 틀렸는지 알려주지 않고 401입니다. 빈 칸은 400입니다. 로그아웃 API는 없으며 프론트엔드가 토큰을 지웁니다.")
     @PostMapping("/login")
@@ -60,5 +71,21 @@ public class AuthController {
     public MemberResponse me(@Parameter(hidden = true) Authentication authentication) {
         //@Parameter(hidden = true) - Swagger에 입력항목에서 삭제
         return MemberResponse.from(auth.current(authentication));//authentication에 맞는 회원 MemberResponse 정보 조회
+    }
+
+    @Operation(summary = "내 비밀번호 변경", description = "토큰이 필요합니다. 성공하면 204이고 mustChangePassword가 false가 됩니다. "
+            + "새 비밀번호가 8~64자가 아니거나 현재 비밀번호가 틀리면 400, 관리자 계정은 403입니다.")
+    @ApiResponse(responseCode = "204", description = "변경됨")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PatchMapping("/me/password")
+    public void changePassword(@Parameter(hidden = true) Authentication authentication, @RequestBody PasswordChangeRequest request) {
+        auth.changePassword(authentication, request.currentPassword(), request.newPassword());
+    }
+
+    @Operation(summary = "내 전화번호 변경", description = "토큰이 필요합니다. phone이 null이거나 빈 값이면 전화번호를 지웁니다. "
+            + "010-1234-5678 모양으로 저장하고 내 정보를 돌려줍니다. 형식이 틀리면 400입니다.")
+    @PatchMapping("/me")
+    public MemberResponse changePhone(@Parameter(hidden = true) Authentication authentication, @RequestBody PhoneChangeRequest request) {
+        return MemberResponse.from(auth.changePhone(authentication, request.phone()));
     }
 }

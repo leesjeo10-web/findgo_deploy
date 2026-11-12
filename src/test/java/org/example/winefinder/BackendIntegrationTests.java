@@ -184,6 +184,66 @@ class BackendIntegrationTests {
                 .andExpect(header().doesNotExist("Set-Cookie")).andReturn();
         assertNull(result.getRequest().getSession(false)); // STATELESS: 세션을 만들지 않음
     }
+    private String passwordBody(String current, String next) {
+        return json.writeValueAsString(Map.of("currentPassword", current, "newPassword", next));
+    }
+    @Test
+    void studentChangesPasswordAndMustChangePasswordBecomesFalse() throws Exception {
+        String token = student("1109");
+        mvc.perform(secured(patch("/api/auth/me/password"), token).contentType(MediaType.APPLICATION_JSON)
+                        .content(passwordBody("password123!", "new-password-1")))
+                .andExpect(status().isNoContent());
+        mvc.perform(secured(get("/api/auth/me"), token)).andExpect(jsonPath("$.mustChangePassword").value(false));
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("1109", "new-password-1")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.user.mustChangePassword").value(false));
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login("1109", "password123!")))
+                .andExpect(status().isUnauthorized());
+    }
+    @Test
+    void passwordChangeRejectsWrongCurrentBadLengthAndAdmin() throws Exception {
+        String token = student("1109");
+        mvc.perform(secured(patch("/api/auth/me/password"), token).contentType(MediaType.APPLICATION_JSON)
+                        .content(passwordBody("wrong-password", "new-password-1")))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("현재 비밀번호가 올바르지 않습니다."));
+        for (String bad : new String[]{"short7!", "a".repeat(65)}) {
+            mvc.perform(secured(patch("/api/auth/me/password"), token).contentType(MediaType.APPLICATION_JSON)
+                            .content(passwordBody("password123!", bad)))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("비밀번호는 8~64자로 입력해주세요."));
+        }
+        mvc.perform(secured(patch("/api/auth/me/password"), token).contentType(MediaType.APPLICATION_JSON)
+                        .content(passwordBody("password123!", "a".repeat(64))))
+                .andExpect(status().isNoContent());
+
+        String admin = tokenOf("admin", Role.ADMIN);
+        mvc.perform(secured(patch("/api/auth/me/password"), admin).contentType(MediaType.APPLICATION_JSON)
+                        .content(passwordBody("password123!", "new-password-1")))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.message").value("관리자 계정의 비밀번호는 화면에서 변경할 수 없습니다."));
+        assertTrue(passwords.matches("password123!", members.findByLoginId("admin").orElseThrow().getPasswordHash()));
+
+        mvc.perform(patch("/api/auth/me/password").contentType(MediaType.APPLICATION_JSON)
+                        .content(passwordBody("password123!", "new-password-1")))
+                .andExpect(status().isUnauthorized());
+    }
+    @Test
+    void phoneIsNormalizedAndNullOrEmptyDeletesIt() throws Exception {
+        String token = student("1109");
+        mvc.perform(secured(patch("/api/auth/me"), token).contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"01012345678\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.loginId").value("1109"))
+                .andExpect(jsonPath("$.phone").value("010-1234-5678"))
+                .andExpect(jsonPath("$.passwordHash").doesNotExist());
+        mvc.perform(secured(patch("/api/auth/me"), token).contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"123\"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("전화번호 형식을 확인해 주세요."));
+        assertEquals("010-1234-5678", members.findByLoginId("1109").orElseThrow().getPhone());
+        mvc.perform(secured(patch("/api/auth/me"), token).contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.phone").isEmpty());
+        mvc.perform(secured(patch("/api/auth/me"), token).contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"010-9876-5432\"}"))
+                .andExpect(jsonPath("$.phone").value("010-9876-5432"));
+        mvc.perform(secured(patch("/api/auth/me"), token).contentType(MediaType.APPLICATION_JSON).content("{\"phone\":null}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.phone").isEmpty());
+        assertNull(members.findByLoginId("1109").orElseThrow().getPhone());
+        mvc.perform(patch("/api/auth/me").contentType(MediaType.APPLICATION_JSON).content("{\"phone\":null}"))
+                .andExpect(status().isUnauthorized());
+    }
     @Test
     void tokenIsRequiredAndExpiredTokenHasOwnMessage() throws Exception {
         mvc.perform(get("/api/items")).andExpect(status().isUnauthorized())
