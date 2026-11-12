@@ -19,11 +19,11 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
     private final AuthService auth;
 
-    @Schema(description = "회원가입 입력 정보")
+    @Schema(description = "회원가입 입력 정보 (임시: 4단계에서 삭제)")
     public record SignupRequest(
-            @Schema(description = "로그인에 사용할 이메일. 최대 254자", example = "student@example.com", requiredMode = Schema.RequiredMode.REQUIRED)
-            @NotBlank @Email @Size(max = 254) String email,
-            @Schema(description = "표시할 이름. 1~40자", example = "테스트 학생", requiredMode = Schema.RequiredMode.REQUIRED)
+            @Schema(description = "로그인 아이디. 숫자 6자리", example = "261109", requiredMode = Schema.RequiredMode.REQUIRED)
+            @NotBlank @Pattern(regexp = "^\\s*\\d{6}\\s*$", message = "아이디는 숫자 6자리로 입력해주세요.") String loginId,
+            @Schema(description = "이름. 1~40자", example = "홍길동", requiredMode = Schema.RequiredMode.REQUIRED)
             @NotBlank @Size(max = 40) String name,
             @Schema(description = "비밀번호. 8~64자", example = "example-password", accessMode = Schema.AccessMode.WRITE_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
             @NotNull @Size(min = 8, max = 64) String password) {}
@@ -43,13 +43,13 @@ public class AuthController {
     }
 
     // 회원가입
-    @Operation(summary = "회원가입", description = "이메일·이름·비밀번호로 가입합니다. 이메일은 소문자로 저장하며 중복 시 409입니다. 가입 후 별도로 로그인해야 합니다. 이메일 소유 인증은 하지 않습니다. CSRF 토큰이 필요합니다.")
+    @Operation(summary = "회원가입", description = "임시 API(4단계에서 삭제). 아이디·이름·비밀번호로 학생 계정을 만듭니다. 중복 아이디는 409입니다. CSRF 토큰이 필요합니다.")
     @PostMapping("/signup") //
     @ResponseStatus(HttpStatus.CREATED) //가입 성공 시 create 상태코드 전송 (201)
     public MemberResponse signup(@Valid @RequestBody SignupRequest request) {
         //Valid - DTO 조건 검사
         //SignupRequest - 프론트 회원가입 정보 DTO
-        return auth.signup(request.email(), request.name(), request.password()); // 서비스에 정보 전달 - 회원가입
+        return auth.signup(request.loginId(), request.name(), request.password()); // 서비스에 정보 전달 - 회원가입
     }
 
 

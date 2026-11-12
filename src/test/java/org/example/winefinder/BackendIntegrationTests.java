@@ -58,12 +58,12 @@ class BackendIntegrationTests {
                 .andReturn().getResponse().getContentAsString());
         return request.session(session).header(csrf.get("headerName").asText(), csrf.get("token").asText());
     }
-    private MockHttpSession signupAndLogin(String email) throws Exception {
+    private MockHttpSession signupAndLogin(String loginId) throws Exception {
         var session = new MockHttpSession();
         mvc.perform(secured(post("/api/auth/signup"), session).contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(Map.of("email", email, "name", "테스트 학생", "password", "password123!"))))
+                .content(json.writeValueAsString(Map.of("loginId", loginId, "name", "테스트 학생", "password", "password123!"))))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.passwordHash").doesNotExist());
-        mvc.perform(secured(post("/api/auth/login"), session).param("email", email).param("password", "password123!"))
+        mvc.perform(secured(post("/api/auth/login"), session).param("loginId", loginId).param("password", "password123!"))
                 .andExpect(status().isNoContent());
         return session;
     }
@@ -81,26 +81,31 @@ class BackendIntegrationTests {
 
     @Test
     void signupLoginMeAndLogoutUseRealAuthentication() throws Exception {
-        var session = signupAndLogin("Alice@school.kr");
-        var member = members.findByEmail("alice@school.kr").orElseThrow();
+        var session = signupAndLogin("261109");
+        var member = members.findByLoginId("261109").orElseThrow();
         assertNotEquals("password123!", member.getPasswordHash());
         assertTrue(member.getPasswordHash().startsWith("{pbkdf2"));
         mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.email").value("alice@school.kr"));
+                .andExpect(jsonPath("$.loginId").value("261109"))
+                .andExpect(jsonPath("$.role").value("STUDENT"))
+                .andExpect(jsonPath("$.mustChangePassword").value(true))
+                .andExpect(jsonPath("$.phone").isEmpty())
+                .andExpect(jsonPath("$.email").doesNotExist())
+                .andExpect(jsonPath("$.passwordHash").doesNotExist());
         mvc.perform(secured(post("/api/auth/logout"), session)).andExpect(status().isNoContent());
         mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
     }
     @Test
     void rejectsDuplicateInvalidSignupAndWrongPassword() throws Exception {
-        signupAndLogin("alice@school.kr");
+        signupAndLogin("261109");
         var s = new MockHttpSession();
         mvc.perform(secured(post("/api/auth/signup"), s).contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(Map.of("email", "ALICE@school.kr", "name", "학생", "password", "password123!"))))
+                .content(json.writeValueAsString(Map.of("loginId", "261109", "name", "학생", "password", "password123!"))))
                 .andExpect(status().isConflict());
         mvc.perform(secured(post("/api/auth/signup"), s).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"invalid\",\"name\":\"\",\"password\":\"123\"}"))
+                .content("{\"loginId\":\"abc\",\"name\":\"\",\"password\":\"123\"}"))
                 .andExpect(status().isBadRequest());
-        mvc.perform(secured(post("/api/auth/login"), s).param("email", "alice@school.kr").param("password", "wrong"))
+        mvc.perform(secured(post("/api/auth/login"), s).param("loginId", "261109").param("password", "wrong-password"))
                 .andExpect(status().isUnauthorized());
     }
     @Test
@@ -110,14 +115,14 @@ class BackendIntegrationTests {
                 .andExpect(status().isForbidden());
         mvc.perform(secured(post("/api/items"), new MockHttpSession()).contentType(MediaType.APPLICATION_JSON)
                 .content(itemBody("LOST", "우산", ""))).andExpect(status().isUnauthorized());
-        var s = signupAndLogin("owner@school.kr");
+        var s = signupAndLogin("261101");
         mvc.perform(post("/api/items").session(s).contentType(MediaType.APPLICATION_JSON).content(itemBody("LOST", "우산", "")))
                 .andExpect(status().isForbidden());
     }
     @Test
     void ownerCanManageItemsButOtherMemberCannot() throws Exception {
-        var owner = signupAndLogin("owner@school.kr");
-        var other = signupAndLogin("other@school.kr");
+        var owner = signupAndLogin("261101");
+        var other = signupAndLogin("261102");
         long id = createItem(owner, "LOST", "우산", "");
         mvc.perform(get("/api/me/items").session(owner)).andExpect(jsonPath("$.content.length()").value(1));
         mvc.perform(get("/api/me/items").session(other)).andExpect(jsonPath("$.content.length()").value(0));
@@ -135,7 +140,7 @@ class BackendIntegrationTests {
     }
     @Test
     void searchFiltersSortingStatisticsAndRecommendations() throws Exception {
-        var s = signupAndLogin("owner@school.kr");
+        var s = signupAndLogin("261101");
         long first = createItem(s, "LOST", "검정 우산", "");
         long second = createItem(s, "FOUND", "검정 우산 50%_!", "");
         createItem(s, "FOUND", "파랑 가방", "");
@@ -154,8 +159,8 @@ class BackendIntegrationTests {
     }
     @Test
     void uploadReencodesImageAndChecksOwnership() throws Exception {
-        var owner = signupAndLogin("owner@school.kr");
-        var other = signupAndLogin("other@school.kr");
+        var owner = signupAndLogin("261101");
+        var other = signupAndLogin("261102");
         var bytes = new ByteArrayOutputStream();
         ImageIO.write(new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB), "png", bytes);
         var request = multipart("/api/images").file(new MockMultipartFile("file", "../photo.png", "image/png", bytes.toByteArray()));

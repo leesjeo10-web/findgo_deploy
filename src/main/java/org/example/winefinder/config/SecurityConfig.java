@@ -22,11 +22,11 @@ public class SecurityConfig {
 
     @Bean
     //로그인할 회원 찾기
-    //입력한 이메일로 DB에서 회원을 찾고, 이메일·저장된 비밀번호 해시·USER 권한을 Spring Security에 전달.
+    //입력한 아이디로 DB에서 회원을 찾고, 아이디·저장된 비밀번호 해시·역할을 Spring Security에 전달. (3단계에서 JWT로 교체)
     UserDetailsService userDetailsService(MemberRepository members) {
-        return email -> members.findByEmail(AuthService.normalizeEmail(email))
-                .map(m -> User.withUsername(m.getEmail()).password(m.getPasswordHash()).roles("USER").build())
-                .orElseThrow(() -> new UsernameNotFoundException("이메일 또는 비밀번호가 올바르지 않습니다."));
+        return loginId -> members.findByLoginId(loginId == null ? "" : loginId.strip())
+                .map(m -> User.withUsername(m.getLoginId()).password(m.getPasswordHash()).roles(m.getRole().name()).build())
+                .orElseThrow(() -> new UsernameNotFoundException("아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요."));
     }
 
     @Bean
@@ -37,11 +37,11 @@ public class SecurityConfig {
                         .requestMatchers("/error", "/api/auth/csrf", "/api/auth/signup", "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/items", "/api/items/*", "/api/home", "/api/images/*", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())
-                .formLogin(f -> f.loginProcessingUrl("/api/auth/login").usernameParameter("email")
+                .formLogin(f -> f.loginProcessingUrl("/api/auth/login").usernameParameter("loginId")
                         .successHandler((req, res, a) -> res.setStatus(204))
                         .failureHandler((req, res, e) -> {
                             res.setStatus(401); res.setContentType("application/json;charset=UTF-8");
-                            res.getWriter().write("{\"message\":\"이메일 또는 비밀번호가 올바르지 않습니다.\"}");
+                            res.getWriter().write("{\"message\":\"아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요.\"}");
                         }).permitAll())
                 .logout(l -> l.logoutUrl("/api/auth/logout").invalidateHttpSession(true).deleteCookies("JSESSIONID")
                         .logoutSuccessHandler((req, res, a) -> res.setStatus(204)))
