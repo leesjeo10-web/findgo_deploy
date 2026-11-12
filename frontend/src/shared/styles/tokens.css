@@ -1,0 +1,29 @@
+:root {
+  color-scheme: light;
+  --g-900: #039855;
+  --g-700: #12b76a;
+  --g-500: #32d583;
+  --g-text: #027a48;
+  --lost: #ef6820;
+  --err: #c02a2a;
+  --ink: #141a17;
+  --muted: #5e6c65;
+  --line: #e2e8e4;
+  --line-2: #cdd6d1;
+  --bg: #fff;
+  --bg-2: #f3f8f5;
+  --font-body:
+    Paperlogy, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  --gutter: clamp(24px, 4.5vw, 64px);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --transition:
+    background-color 0.2s var(--ease), color 0.2s var(--ease),
+    border-color 0.2s var(--ease), filter 0.2s var(--ease),
+    opacity 0.2s var(--ease);
+  --hover-bg: rgba(23, 35, 29, 0.05);
+}
+@media (max-width: 560px) {
+  :root {
+    --gutter: 16px;
+  }
+}
