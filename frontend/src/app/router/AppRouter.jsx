@@ -3,6 +3,7 @@ import ItemListPage from '../../features/items/pages/ItemListPage.jsx'
 import ItemDetailPage from '../../features/items/pages/ItemDetailPage.jsx'
 import ItemCreatePage from '../../features/items/pages/ItemCreatePage.jsx'
 import ItemEditPage from '../../features/items/pages/ItemEditPage.jsx'
+import MyPage from '../../features/my-page/pages/MyPage.jsx'
 function HomeRedirect() {
   const { search, hash } = useLocation()
   return <Navigate to={{ pathname: '/', search, hash }} replace />
@@ -15,7 +16,7 @@ export default function AppRouter() {
       <Route path="/items/new" element={<ItemCreatePage />} />
       <Route path="/items/:id" element={<ItemDetailPage />} />
       <Route path="/items/:id/edit" element={<ItemEditPage />} />
-      <Route path="/mypage" element={<Navigate to="/" replace />} />
+      <Route path="/mypage" element={<MyPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
