@@ -49,6 +49,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(r -> r
                         // 토큰 없이 쓸 수 있는 경로
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        // 사진 보기: <img src>는 Authorization 헤더를 보내지 않으므로 토큰 없이 허용 (파일 이름은 무작위 UUID)
+                        .requestMatchers(HttpMethod.GET, "/api/images/*").permitAll()
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

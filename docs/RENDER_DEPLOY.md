@@ -32,7 +32,7 @@ Render에서 접근 가능한 외부 MySQL 호스트를 준비하고 네트워�
 ## 3. 프론트 연결 주의
 - API 기본 경로는 `/api`, Swagger는 `/swagger-ui/index.html`입니다.
 - 로그인 응답의 `accessToken`을 `Authorization: Bearer {accessToken}` 헤더로 보냅니다. 쿠키를 쓰지 않으므로 Vercel과 Render처럼 서로 다른 사이트에서도 `FRONTEND_ORIGINS`만 맞으면 직접 호출할 수 있습니다.
-- 사진 조회도 토큰이 필요하므로 `<img src>` 대신 fetch로 받아 blob URL로 표시합니다. 자세한 내용은 [API.md](API.md)를 보세요.
+- 사진 보기는 토큰 없이 되므로 `imageUrl` 앞에 백엔드 주소를 붙여 `<img src>`로 표시합니다. 자세한 내용은 [API.md](API.md)를 보세요.
 
 ## 4. 무료 플랜 주의
 - Render Free 인스턴스는 유휴 시 중지되고 다시 시작할 때 지연될 수 있습니다.

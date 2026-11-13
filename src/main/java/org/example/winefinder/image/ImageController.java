@@ -31,7 +31,7 @@ public class ImageController {
     public ImageUploadResponse upload(@RequestParam @Parameter(description = "5MB 이하의 JPG 또는 PNG 사진 한 장") MultipartFile file, @Parameter(hidden = true) Authentication user) {
         return new ImageUploadResponse(images.upload(file, auth.current(user).getId()));
     }
-    @Operation(summary = "물품 사진 조회", description = "토큰이 필요합니다. <img src>로는 헤더를 보낼 수 없으므로 프론트엔드는 Authorization 헤더로 받아 blob URL로 표시합니다. 존재하지 않는 파일은 404입니다.")
+    @Operation(summary = "물품 사진 조회", description = "토큰 없이 조회할 수 있습니다. 프론트엔드는 imageUrl을 <img src>에 그대로 넣으면 됩니다. 파일 이름은 무작위(UUID)입니다. 존재하지 않는 파일은 404입니다.")
     @GetMapping("/{filename}")
     public ResponseEntity<Resource> read(@PathVariable @Parameter(description = "업로드 응답 URL에 포함된 JPEG 파일명", example = "123e4567-e89b-12d3-a456-426614174000.jpg") String filename) {
         return ResponseEntity.ok().contentType(MediaType.IMAGE_JPEG)
