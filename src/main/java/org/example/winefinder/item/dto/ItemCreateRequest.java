@@ -23,5 +23,7 @@ public record ItemCreateRequest(
         @Schema(description = "본인이 업로드한 사진 URL 한 개(/api/images/...). 사진이 없으면 null이며 빈 문자열도 null로 저장합니다.", example = "/api/images/123e4567-e89b-12d3-a456-426614174000.jpg", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String imageUrl,
         @Schema(description = "분실 또는 습득 날짜(YYYY-MM-DD). 오늘(Asia/Seoul) 이후 날짜는 허용하지 않습니다.", example = "2026-10-01", requiredMode = Schema.RequiredMode.REQUIRED)
-        LocalDate lostFoundAt
+        LocalDate lostFoundAt,
+        @Schema(description = "물품 종류(선택): 전자기기, 지갑/카드, 의류, 가방, 필기구, 기타 중 하나. 없으면 null", example = "지갑/카드", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        String itemCategory
 ) {}

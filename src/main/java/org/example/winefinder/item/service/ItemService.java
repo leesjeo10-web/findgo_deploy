@@ -24,6 +24,9 @@ public class ItemService {
     static final String NOT_OWNER = "본인이 등록한 물품만 수정·삭제할 수 있습니다.";
     static final String TOO_LONG = "이름·장소는 100자, 설명은 2000자 이하로 입력하세요.";
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    // 물품 종류(선택 입력). 프론트엔드 선택지와 같은 값을 씁니다.
+    public static final List<String> CATEGORIES = List.of("전자기기", "지갑/카드", "의류", "가방", "필기구", "기타");
+    static final String INVALID_CATEGORY = "물품 종류를 확인해주세요.";
 
     private final ItemRepository items;
     private final ImageService images;
@@ -37,10 +40,11 @@ public class ItemService {
         Item item = new Item(userId, request.type(), f.name(), f.description(),
                 request.status() == null ? ItemStatus.OPEN : request.status(), f.location(),
                 f.storageLocation(), imageUrl, request.lostFoundAt());
+        item.changeCategory(category(request.itemCategory()));
         return ItemResponse.from(items.save(item));
     }
 
-    public Page<ItemResponse> findAll(String keyword, ItemType type, ItemStatus status,
+    public Page<ItemResponse> findAll(String keyword, ItemType type, ItemStatus status, String itemCategory,
                                       String sort, int page, int size, Long userId) {
         if (page < 0 || size < 1 || size > 100 || !("latest".equals(sort) || "oldest".equals(sort))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "page ≥ 0, size 1~100, sort latest/oldest를 사용하세요.");
@@ -48,10 +52,12 @@ public class ItemService {
         if (keyword != null && keyword.strip().length() > 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "검색어는 100자 이하로 입력하세요.");
         }
+        String category = category(itemCategory);
         Specification<Item> spec = (root, query, cb) -> {
             var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
             if (type != null) predicates.add(cb.equal(root.get("type"), type));
             if (status != null) predicates.add(cb.equal(root.get("status"), status));
+            if (category != null) predicates.add(cb.equal(root.get("itemCategory"), category));
             if (userId != null) predicates.add(cb.equal(root.get("userId"), userId));
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.strip().toLowerCase(Locale.ROOT)
@@ -79,6 +85,7 @@ public class ItemService {
         Item item = owned(id, userId);
         Fields f = validate(request.type(), request.name(), request.description(), request.location(), request.storageLocation(), request.lostFoundAt());
         if (request.status() == null) throw badRequest(STATUS_REQUIRED);
+        String category = category(request.itemCategory());
         // 기존 사진은 유지 가능하며, 교체 사진은 본인이 업로드한 사진이어야 합니다.
         String imageUrl = blankToNull(request.imageUrl());
         String oldImageUrl = item.getImageUrl();
@@ -86,6 +93,7 @@ public class ItemService {
         if (imageChanged) images.requireOwned(imageUrl, userId);
         item.update(request.type(), f.name(), f.description(), request.status(),
                 f.location(), f.storageLocation(), imageUrl, request.lostFoundAt());
+        item.changeCategory(category); // 비우면 기존 값도 지웁니다.
         if (imageChanged) images.release(oldImageUrl); // 바꾸거나 비운 예전 사진 정리
         return ItemResponse.from(item);
     }
@@ -116,7 +124,7 @@ public class ItemService {
         if (tokens.isEmpty()) return List.of();
         // 간단한 키워드 추천: 반대 유형의 미해결 물품 중 최근 100건을 비교합니다.
         return findAll(null, type == ItemType.LOST ? ItemType.FOUND : ItemType.LOST,
-                ItemStatus.OPEN, "latest", 0, 100, null).getContent().stream()
+                ItemStatus.OPEN, null, "latest", 0, 100, null).getContent().stream()
                 .filter(i -> !Objects.equals(i.id(), excludeId))
                 .map(i -> Map.entry(i, tokens.stream().filter(t ->
                         (i.name() + " " + Objects.toString(i.description(), "")).toLowerCase(Locale.ROOT).contains(t)).count()))
@@ -156,6 +164,12 @@ public class ItemService {
         }
         if (date.isAfter(LocalDate.now(SEOUL))) throw badRequest("미래 날짜는 입력할 수 없습니다.");
         return new Fields(n, d, l, s);
+    }
+    // 물품 종류: 비어 있으면 null, 정해진 목록에 없으면 400
+    private static String category(String value) {
+        String c = blankToNull(value);
+        if (c != null && !CATEGORIES.contains(c)) throw badRequest(INVALID_CATEGORY);
+        return c;
     }
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.strip();

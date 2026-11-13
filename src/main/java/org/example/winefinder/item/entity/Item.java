@@ -42,6 +42,12 @@ public class Item {
     @Column(columnDefinition = "TEXT")
     private String imageUrl;
 
+    // 물품 종류(선택). ItemService.CATEGORIES 중 하나이거나 null
+    @Column(length = 20)
+    private String itemCategory;
+
+    public void changeCategory(String itemCategory) { this.itemCategory = itemCategory; }
+
     @Column(nullable = false)
     private LocalDate lostFoundAt;
 

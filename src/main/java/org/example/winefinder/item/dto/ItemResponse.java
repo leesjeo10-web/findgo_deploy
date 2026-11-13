@@ -15,6 +15,8 @@ public record ItemResponse(
         Long userId,
         @Schema(description = "물품 유형: LOST=분실물, FOUND=습득물", example = "FOUND")
         ItemType type,
+        @Schema(description = "물품 종류: 전자기기, 지갑/카드, 의류, 가방, 필기구, 기타. 없으면 null", example = "지갑/카드", nullable = true)
+        String itemCategory,
         @Schema(description = "물품 이름. 앞뒤 공백을 지운 뒤 1~100자입니다.", example = "검정 우산")
         String name,
         @Schema(description = "물품 특징과 설명. 앞뒤 공백을 지운 뒤 1~2000자입니다.", example = "손잡이에 파란 스티커가 있습니다.")
@@ -33,7 +35,7 @@ public record ItemResponse(
         LocalDateTime createdAt
 ) {
     public static ItemResponse from(Item item) {
-        return new ItemResponse(item.getId(), item.getUserId(), item.getType(), item.getName(),
+        return new ItemResponse(item.getId(), item.getUserId(), item.getType(), item.getItemCategory(), item.getName(),
                 item.getDescription(), item.getStatus(), item.getLocation(),
                 item.getStorageLocation(), item.getImageUrl(), item.getLostFoundAt(),
                 item.getCreatedAt());

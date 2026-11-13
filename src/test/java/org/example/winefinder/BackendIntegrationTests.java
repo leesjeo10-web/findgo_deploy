@@ -514,7 +514,7 @@ class BackendIntegrationTests {
         var request = multipart("/api/images").file(new MockMultipartFile("file", "../photo.png", "image/png", bytes.toByteArray()));
         var response = mvc.perform(secured(request, owner)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         String url = json.readTree(response).get("imageUrl").asText();
-        mvc.perform(get(url)).andExpect(status().isUnauthorized()); // 사진도 토큰이 필요
+        mvc.perform(get(url)).andExpect(status().isOk()).andExpect(content().contentType(MediaType.IMAGE_JPEG)); // 사진은 토큰 없이 조회
         mvc.perform(secured(get(url), other)).andExpect(status().isOk()).andExpect(content().contentType(MediaType.IMAGE_JPEG));
         createItem(owner, "FOUND", "우산", url);
         mvc.perform(secured(post("/api/items"), other).contentType(MediaType.APPLICATION_JSON).content(itemBody("LOST", "우산", url)))
@@ -695,11 +695,12 @@ class BackendIntegrationTests {
                 .andExpect(jsonPath("$.message").value(SecurityConfig.ADMIN_ONLY));
     }
     @Test
-    void imagesNeedTokenButSwaggerIsPublic() throws Exception {
+    void imageViewAndSwaggerArePublicButUploadNeedsToken() throws Exception {
         String missing = "/api/images/00000000-0000-0000-0000-000000000000.jpg";
-        mvc.perform(get(missing)).andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value(SecurityConfig.LOGIN_REQUIRED));
+        mvc.perform(get(missing)).andExpect(status().isNotFound()); // 토큰 없이 조회 가능, 없는 파일은 404
         mvc.perform(secured(get(missing), student("1101"))).andExpect(status().isNotFound());
+        mvc.perform(multipart("/api/images").file(new MockMultipartFile("file", "a.png", "image/png", new byte[]{1})))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.message").value(SecurityConfig.LOGIN_REQUIRED));
         mvc.perform(get("/v3/api-docs")).andExpect(status().isOk());
     }
     @Test
@@ -734,4 +735,28 @@ class BackendIntegrationTests {
         assertTrue(spec.at("/components/schemas/ImageUploadResponse/properties/imageUrl/description").asText().contains("사진"));
     }
 
+    @Test
+    void itemCategoryIsOptionalValidatedAndFilterable() throws Exception {
+        String s = student("1101");
+        // 선택 입력: 없으면 null로 저장
+        postItem(s, itemJson(Map.of("name", "종류 없음"))).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.itemCategory").doesNotExist());
+        var created = postItem(s, itemJson(Map.of("name", "카드지갑", "itemCategory", "지갑/카드"))).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.itemCategory").value("지갑/카드")).andReturn().getResponse().getContentAsString();
+        long id = json.readTree(created).get("id").asLong();
+        postItem(s, itemJson(Map.of("name", "이어폰", "itemCategory", "전자기기"))).andExpect(status().isCreated());
+        // 정해진 목록에 없는 값은 400
+        postItem(s, itemJson(Map.of("itemCategory", "음식"))).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("물품 종류를 확인해주세요."));
+        // 목록 필터와 상세 응답
+        mvc.perform(secured(get("/api/items"), s).param("itemCategory", "지갑/카드")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.content[0].name").value("카드지갑"));
+        mvc.perform(secured(get("/api/items"), s).param("itemCategory", "")).andExpect(jsonPath("$.totalElements").value(3));
+        mvc.perform(secured(get("/api/items"), s).param("itemCategory", "음식")).andExpect(status().isBadRequest());
+        mvc.perform(secured(get("/api/items/" + id), s)).andExpect(jsonPath("$.itemCategory").value("지갑/카드"));
+        // 수정에서 비우면 기존 값도 지움
+        mvc.perform(secured(put("/api/items/" + id), s).contentType(MediaType.APPLICATION_JSON)
+                .content(itemJson(Map.of("name", "카드지갑", "status", "OPEN")))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemCategory").doesNotExist());
+    }
 }

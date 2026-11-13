@@ -5,7 +5,7 @@
 
 ## 인증
 
-- `POST /api/auth/login`을 뺀 **모든 API**(사진 조회 포함)에 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
+- `POST /api/auth/login`과 사진 보기(`GET /api/images/{filename}`)를 뺀 **모든 API**에 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
 - 세션·쿠키·CSRF는 쓰지 않습니다. 로그아웃 API는 없고 프론트가 저장한 토큰을 지우면 됩니다.
 - 토큰 유효 시간은 `expiresIn`초(기본 3600)입니다.
 - `mustChangePassword`가 true면 프론트가 비밀번호 변경 화면으로 보냅니다. `phone`이 null이면 전화번호 입력 화면으로 보냅니다. 서버는 이 상태에서도 다른 API를 막지 않습니다.
@@ -37,7 +37,7 @@
 | 내 물품 목록 | GET | `/api/me/items` | 토큰 | 200 페이지 |
 | 비슷한 물품 추천 | GET | `/api/items/similar` | 토큰 | 200 물품 최대 3건 |
 | 사진 업로드 | POST | `/api/images` | 토큰 | 201 `{imageUrl}` |
-| 사진 보기 | GET | `/api/images/{filename}` | 토큰 | 200 JPEG |
+| 사진 보기 | GET | `/api/images/{filename}` | 누구나 | 200 JPEG |
 | 물품 등록 | POST | `/api/items` | 토큰 | 201 물품 |
 | 물품 수정 | PUT | `/api/items/{id}` | 작성자 | 200 물품 |
 | 해결 상태 변경 | PATCH | `/api/items/{id}/status` | 작성자 | 200 물품 |
@@ -62,14 +62,16 @@
 
 ### 물품
 
-물품 JSON 필드는 `id, userId, type(LOST/FOUND), name, description, status(OPEN/RESOLVED), location, storageLocation, imageUrl, lostFoundAt(YYYY-MM-DD), createdAt(YYYY-MM-DDTHH:mm:ss)`입니다.
+물품 JSON 필드는 `id, userId, type(LOST/FOUND), itemCategory, name, description, status(OPEN/RESOLVED), location, storageLocation, imageUrl, lostFoundAt(YYYY-MM-DD), createdAt(YYYY-MM-DDTHH:mm:ss)`입니다.
 상세에만 `userName`, `userPhone`, `userOfficePhone`(관리자 글만, 학생 글은 null)이 추가됩니다.
 
-- **목록 쿼리**: `keyword`(100자 이하), `type`, `status`, `sort`(`latest` 기본/`oldest`), `page`(0부터), `size`(1~100, 기본 20)
+- **목록 쿼리**: `keyword`(100자 이하), `type`, `status`, `itemCategory`, `sort`(`latest` 기본/`oldest`), `page`(0부터), `size`(1~100, 기본 20)
   - 등록 일시(`createdAt`) 순으로 정렬하고, 같은 시각이면 id 순입니다.
   - 응답은 `{content, page, size, totalElements, totalPages, first, last}`입니다.
 - **등록·수정**
   - 필수: `type, name, description, location, lostFoundAt`. 습득물(FOUND)은 `storageLocation`도 필수입니다.
+  - 선택: `storageLocation`(분실물), `imageUrl`, `itemCategory`
+  - `itemCategory`(물품 종류)는 `전자기기`, `지갑/카드`, `의류`, `가방`, `필기구`, `기타` 중 하나이거나 비워 둡니다. 다른 값은 400 "물품 종류를 확인해주세요."입니다. 목록에서 같은 값으로 거를 수 있습니다.
   - 수정은 `status`도 필수이고, 선택 항목을 비우면 기존 값도 지웁니다.
   - 분실물(LOST)은 `storageLocation`을 보내도 null로 저장합니다.
   - 글자 수는 앞뒤 공백을 지운 뒤 셉니다. 이름·장소·보관 장소는 100자, 설명은 2000자까지입니다.
@@ -127,15 +129,8 @@ const { accessToken, user } = await api('/auth/login', { method: 'POST', body: {
 localStorage.setItem('accessToken', accessToken);
 ```
 
-사진은 `<img src="/api/images/...">`로 바로 표시할 수 없습니다. 브라우저가 `Authorization` 헤더를 보내지 않기 때문입니다.
-헤더를 붙여 받아 blob URL로 표시하세요.
+사진은 `imageUrl`을 `<img src>`에 그대로 넣으면 됩니다. 사진 보기는 토큰이 필요 없습니다(파일 이름은 무작위 UUID). 사진 올리기(`POST /api/images`)는 토큰이 필요합니다.
 
-```js
-async function imageSrc(imageUrl) {
-  const res = await fetch(`http://localhost:8081${imageUrl}`, {
-    headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
-  });
-  if (!res.ok) return null;
-  return URL.createObjectURL(await res.blob()); // 다 쓰면 URL.revokeObjectURL로 해제
-}
+```jsx
+<img src={`http://localhost:8081${item.imageUrl}`} alt={item.name} />
 ```

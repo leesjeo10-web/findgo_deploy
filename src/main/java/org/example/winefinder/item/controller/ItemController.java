@@ -30,13 +30,14 @@ public class ItemController {
         var response = items.create(request, auth.current(user).getId());
         return ResponseEntity.created(URI.create("/api/items/" + response.id())).body(response);
     }
-    @Operation(summary = "물품 검색 및 목록 조회", description = "토큰이 필요합니다. 검색어·유형·해결 상태를 함께 필터링하고 페이지와 정렬(등록 일시 기준)을 지정할 수 있습니다. 목록에는 작성자 이름·전화번호가 없습니다.")
+    @Operation(summary = "물품 검색 및 목록 조회", description = "토큰이 필요합니다. 검색어·유형·해결 상태·물품 종류를 함께 필터링하고 페이지와 정렬(등록 일시 기준)을 지정할 수 있습니다. 목록에는 작성자 이름·전화번호가 없습니다.")
     @GetMapping
     public PageResponse<ItemResponse> findAll(@RequestParam(required = false) @Parameter(description = "이름·설명·장소·보관 장소의 부분 문자열 검색. 최대 100자", example = "우산") String keyword,
             @RequestParam(required = false) @Parameter(description = "물품 유형. 목록에서는 생략 시 전체, 추천에서는 필수", example = "LOST") ItemType type, @RequestParam(required = false) @Parameter(description = "해결 상태. 생략하면 전체", example = "OPEN") ItemStatus status,
+            @RequestParam(required = false) @Parameter(description = "물품 종류: 전자기기, 지갑/카드, 의류, 가방, 필기구, 기타. 생략하면 전체", example = "지갑/카드") String itemCategory,
             @RequestParam(defaultValue = "latest") @Parameter(description = "정렬: latest=최신순, oldest=오래된 순", example = "latest") String sort, @RequestParam(defaultValue = "0") @Parameter(description = "페이지 번호. 0부터 시작", example = "0") int page,
             @RequestParam(defaultValue = "20") @Parameter(description = "페이지당 건수. 1~100", example = "20") int size) {
-        return PageResponse.from(items.findAll(keyword, type, status, sort, page, size, null));
+        return PageResponse.from(items.findAll(keyword, type, status, itemCategory, sort, page, size, null));
     }
     @Operation(summary = "비슷한 물품 추천", description = "토큰이 필요합니다. 반대 유형의 미해결 물품 중 최근 100건에서 이름·설명의 키워드를 비교해 최대 3건을 반환합니다. AI 이미지 분석은 사용하지 않습니다.")
     @GetMapping("/similar")

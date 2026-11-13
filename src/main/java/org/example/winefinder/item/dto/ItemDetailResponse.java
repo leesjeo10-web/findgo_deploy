@@ -14,6 +14,7 @@ public record ItemDetailResponse(
         @Schema(description = "물품 ID", example = "1") Long id,
         @Schema(description = "작성자 ID", example = "1") Long userId,
         @Schema(description = "물품 유형: LOST=분실물, FOUND=습득물", example = "FOUND") ItemType type,
+        @Schema(description = "물품 종류. 없으면 null", example = "지갑/카드", nullable = true) String itemCategory,
         @Schema(description = "물품 이름", example = "검정 우산") String name,
         @Schema(description = "물품 특징과 설명", example = "손잡이에 파란 스티커가 있습니다.") String description,
         @Schema(description = "진행 상태: OPEN=찾는 중, RESOLVED=해결 완료", example = "OPEN") ItemStatus status,
@@ -27,7 +28,7 @@ public record ItemDetailResponse(
         @Schema(description = "작성자 교무실 번호. 관리자가 쓴 글만 있고 학생 글은 null", example = "02-123-4567", nullable = true) String userOfficePhone
 ) {
     public static ItemDetailResponse from(Item item, Member writer) {
-        return new ItemDetailResponse(item.getId(), item.getUserId(), item.getType(), item.getName(),
+        return new ItemDetailResponse(item.getId(), item.getUserId(), item.getType(), item.getItemCategory(), item.getName(),
                 item.getDescription(), item.getStatus(), item.getLocation(), item.getStorageLocation(),
                 item.getImageUrl(), item.getLostFoundAt(), item.getCreatedAt(),
                 writer == null ? null : writer.getName(), writer == null ? null : writer.getPhone(),
