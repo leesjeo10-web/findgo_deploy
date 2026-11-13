@@ -24,7 +24,7 @@ Render에서 접근 가능한 외부 MySQL 호스트를 준비하고 네트워�
 | `FRONTEND_ORIGINS` | 프론트엔드 배포 origin, 예: `https://example.vercel.app` |
 | `JWT_SECRET` | 32바이트 이상 무작위 문자열 (필수, 없으면 서버가 시작되지 않음) |
 | `JWT_EXPIRES_SECONDS` | 토큰 유효 시간(초), 생략하면 3600 |
-| `ADMIN_INITIAL_PASSWORD` | 첫 배포 때 admin 계정 비밀번호 (admin이 이미 있으면 무시) |
+| `ADMIN_INITIAL_PASSWORD` | 첫 배포 때 관리자(0000) 계정 비밀번호 (이미 있으면 무시) |
 | `UPLOAD_DIR` | 사진 저장 폴더 (영구 디스크를 쓸 때 그 경로) |
 
 `PORT`는 Render가 자동 제공하므로 별도로 설정할 필요가 없습니다.
@@ -43,5 +43,5 @@ Render에서 접근 가능한 외부 MySQL 호스트를 준비하고 네트워�
 1. Render Logs에서 Docker 빌드와 Spring Boot 기동을 확인합니다.
 2. `https://<your-render-host>/v3/api-docs` 또는 `/swagger-ui/index.html`에 접속합니다.
 3. DB 접속 오류가 발생하면 `DB_URL`, 계정, TLS, 방화벽/허용 IP를 점검합니다.
-4. Swagger에서 `admin` 계정으로 로그인해 토큰을 받고, 학생 추가·물품 API를 테스트합니다.
-5. 첫 배포가 끝나 admin 계정이 생겼으면 `ADMIN_INITIAL_PASSWORD`는 지워도 됩니다.
+4. Swagger에서 관리자 `0000` 계정으로 로그인해 토큰을 받고, 학생 추가·물품 API를 테스트합니다.
+5. 첫 배포가 끝나 관리자 계정이 생겼으면 `ADMIN_INITIAL_PASSWORD`는 지워도 됩니다.

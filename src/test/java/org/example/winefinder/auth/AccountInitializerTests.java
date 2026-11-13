@@ -29,7 +29,7 @@ class AccountInitializerTests {
     @Test
     void createsAdminOnlyWhenMissing() throws Exception {
         initializer("admin-password-1", "").run(null);
-        var admin = members.findByLoginId("admin").orElseThrow();
+        var admin = members.findByLoginId("0000").orElseThrow();
         assertEquals(Role.ADMIN, admin.getRole());
         assertEquals("선생님", admin.getName());
         assertFalse(admin.isMustChangePassword());
@@ -38,13 +38,13 @@ class AccountInitializerTests {
         // 이미 있으면 다른 값이 와도 만들거나 바꾸지 않습니다.
         initializer("other-password-2", "").run(null);
         assertEquals(1, members.count());
-        assertTrue(passwords.matches("admin-password-1", members.findByLoginId("admin").orElseThrow().getPasswordHash()));
+        assertTrue(passwords.matches("admin-password-1", members.findByLoginId("0000").orElseThrow().getPasswordHash()));
     }
 
     @Test
     void skipsAdminWhenPasswordIsNotSet() throws Exception {
         initializer("", "").run(null);
-        assertFalse(members.existsByLoginId("admin"));
+        assertFalse(members.existsByLoginId("0000"));
     }
 
     @Test
@@ -60,6 +60,7 @@ class AccountInitializerTests {
                 "261105,예전 6자리,,password-123",             // 4자리가 아님 → 건너뜀
                 "1103,짧은 비번,,short",                       // 8자 미만 → 건너뜀
                 "1105,번호 오류,123,password-123",             // 전화번호 형식 오류 → 건너뜀
+                "0000,관리자 아이디,,password-123",             // 관리자 예약 아이디 → 건너뜀
                 "1104,김철수,,password-456"), StandardCharsets.UTF_8);  // 전화번호 없음 → 첫 로그인 때 입력
 
         initializer("", csv.toString()).run(null);
@@ -79,6 +80,7 @@ class AccountInitializerTests {
         assertFalse(members.existsByLoginId("1105"));
         assertFalse(members.existsByLoginId("1103"));
         assertFalse(members.existsByLoginId("261105"));
+        assertFalse(members.existsByLoginId("0000"));
     }
 
     @Test

@@ -40,9 +40,9 @@ class MemberTests {
 
     @Test
     void responseHasDesignFieldsWithoutPassword() {
-        var admin = members.saveAndFlush(new Member("admin", "관리자", "{noop}hash", Role.ADMIN, false));
+        var admin = members.saveAndFlush(new Member("0000", "관리자", "{noop}hash", Role.ADMIN, false));
         var body = json.readTree(json.writeValueAsString(MemberResponse.from(admin)));
-        assertEquals("admin", body.get("loginId").asText());
+        assertEquals("0000", body.get("loginId").asText());
         assertEquals("ADMIN", body.get("role").asText());
         assertFalse(body.get("mustChangePassword").asBoolean());
         assertTrue(body.has("phone"));

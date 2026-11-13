@@ -40,6 +40,7 @@ public class AdminMemberService {
         String trimmedName = name == null ? "" : name.strip();
         if (id.isEmpty()) throw badRequest("아이디를 입력해주세요.");
         if (!id.matches("\\d{4}")) throw badRequest("아이디는 숫자 4자리로 입력해주세요.");
+        if (AccountInitializer.ADMIN_LOGIN_ID.equals(id)) throw duplicate(); // 관리자 아이디(0000)는 예약
         if (trimmedName.isEmpty()) throw badRequest("이름을 입력해주세요.");
         if (trimmedName.length() > 40) throw badRequest("이름은 40자 이하로 입력해주세요.");
         if (password == null || password.isEmpty()) throw badRequest("비밀번호를 입력해주세요.");

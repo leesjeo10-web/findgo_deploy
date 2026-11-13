@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 //프론트 응답 DTO
 public record MemberResponse(
         @Schema(description = "회원 ID", example = "1") Long id,
-        @Schema(description = "로그인 아이디. 학생은 숫자 4자리, 관리자는 admin", example = "1109") String loginId,
+        @Schema(description = "로그인 아이디. 학생은 숫자 4자리, 관리자는 0000", example = "1109") String loginId,
         @Schema(description = "이름", example = "홍길동") String name,
         @Schema(description = "휴대전화 번호. 아직 입력하지 않았으면 null(프론트엔드가 입력 화면으로 보냄)", example = "010-1234-5678") String phone,
         @Schema(description = "교무실 번호. 관리자만 있고 학생은 null", example = "02-123-4567", nullable = true) String officePhone,

@@ -14,13 +14,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
 // 앱이 시작될 때 계정을 준비합니다.
-// 1) 선생님(관리자) admin 계정이 없으면 ADMIN_INITIAL_PASSWORD로 만듭니다. 값이 없으면 경고 로그만 남깁니다.
+// 1) 선생님(관리자) 0000 계정이 없으면 ADMIN_INITIAL_PASSWORD로 만듭니다. 값이 없으면 경고 로그만 남깁니다.
 // 2) STUDENTS_CSV에 파일 경로가 있으면 loginId,name,phone,initialPassword 형식으로 읽어 없는 아이디만 추가합니다.
 //    phone은 비워도 됩니다(학생이 첫 로그인 때 입력).
 @Slf4j
 @Component
 public class AccountInitializer implements ApplicationRunner {
-    static final String ADMIN_LOGIN_ID = "admin";
+    // 관리자 아이디. 숫자 4자리라 학생 아이디 형식과 같으므로 학생 추가·CSV에서는 쓸 수 없게 막습니다(예약).
+    static final String ADMIN_LOGIN_ID = "0000";
     static final String ADMIN_NAME = "선생님";
     private static final String CSV_HEADER = "loginId,name,phone,initialPassword";
 
@@ -47,11 +48,11 @@ public class AccountInitializer implements ApplicationRunner {
     void createAdminIfMissing() {
         if (members.existsByLoginId(ADMIN_LOGIN_ID)) return;
         if (adminInitialPassword == null || adminInitialPassword.isEmpty()) {
-            log.warn("admin 계정이 없지만 ADMIN_INITIAL_PASSWORD가 설정되지 않아 만들지 않았습니다.");
+            log.warn("관리자(0000) 계정이 없지만 ADMIN_INITIAL_PASSWORD가 설정되지 않아 만들지 않았습니다.");
             return;
         }
         members.saveAndFlush(new Member(ADMIN_LOGIN_ID, ADMIN_NAME, passwords.encode(adminInitialPassword), Role.ADMIN, false));
-        log.info("admin 계정을 만들었습니다.");
+        log.info("관리자(0000) 계정을 만들었습니다.");
     }
 
     void importStudents() {
@@ -83,6 +84,11 @@ public class AccountInitializer implements ApplicationRunner {
             if (!loginId.matches("\\d{4}") || name.isEmpty() || name.length() > 40 || !phoneOk
                     || password.length() < 8 || password.length() > 64) {
                 log.warn("STUDENTS_CSV {}번째 줄은 형식이 맞지 않아 건너뜁니다.", i + 1); // 비밀번호는 로그에 남기지 않음
+                skipped++;
+                continue;
+            }
+            if (ADMIN_LOGIN_ID.equals(loginId)) {
+                log.warn("STUDENTS_CSV {}번째 줄은 관리자 아이디(0000)라 건너뜁니다.", i + 1);
                 skipped++;
                 continue;
             }

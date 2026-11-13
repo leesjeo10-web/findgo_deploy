@@ -162,7 +162,7 @@ class BackendIntegrationTests {
     @Test
     void adminCanDeleteStudentItemButCannotEditIt() throws Exception {
         String owner = student("1101");
-        String admin = tokenOf("admin", Role.ADMIN);
+        String admin = tokenOf("0000", Role.ADMIN);
         long id = createItem(owner, "FOUND", "우산", "");
         mvc.perform(secured(put("/api/items/" + id), admin).contentType(MediaType.APPLICATION_JSON)
                 .content(itemBody("FOUND", "관리자 수정", ""))).andExpect(status().isForbidden());
@@ -181,7 +181,7 @@ class BackendIntegrationTests {
     }
     @Test
     void adminListsStudentsWithoutAdminInLoginIdOrder() throws Exception {
-        String admin = tokenOf("admin", Role.ADMIN);
+        String admin = tokenOf("0000", Role.ADMIN);
         members.saveAndFlush(new Member("1203", "다학생", "{noop}x", Role.STUDENT, true));
         members.saveAndFlush(new Member("1101", "가학생", "{noop}x", Role.STUDENT, true));
         members.saveAndFlush(new Member("1109", "나학생", "{noop}x", Role.STUDENT, false));
@@ -197,7 +197,7 @@ class BackendIntegrationTests {
     }
     @Test
     void adminAddsStudentWhoMustChangePassword() throws Exception {
-        String admin = tokenOf("admin", Role.ADMIN);
+        String admin = tokenOf("0000", Role.ADMIN);
         mvc.perform(secured(post("/api/admin/members"), admin).contentType(MediaType.APPLICATION_JSON)
                         .content(studentBody(" 1109 ", " 김민수 ", "initial-pass")))
                 .andExpect(status().isCreated())
@@ -232,7 +232,7 @@ class BackendIntegrationTests {
     }
     @Test
     void addStudentValidatesLoginIdNameAndPassword() throws Exception {
-        String admin = tokenOf("admin", Role.ADMIN);
+        String admin = tokenOf("0000", Role.ADMIN);
         String[][] cases = {
                 {"261109", "김민수", "initial-pass", "아이디는 숫자 4자리로 입력해주세요."},
                 {"abcd", "김민수", "initial-pass", "아이디는 숫자 4자리로 입력해주세요."},
@@ -248,6 +248,10 @@ class BackendIntegrationTests {
                             .content(studentBody(c[0], c[1], c[2])))
                     .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value(c[3]));
         }
+        // 관리자 아이디(0000)는 학생으로 추가할 수 없음
+        mvc.perform(secured(post("/api/admin/members"), admin).contentType(MediaType.APPLICATION_JSON)
+                        .content(studentBody("0000", "김민수", "initial-pass")))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.message").value("이미 등록된 아이디입니다."));
         assertEquals(1, members.count()); // admin만 있음
     }
     // 10x10 PNG를 올리고 imageUrl을 돌려줍니다.
@@ -286,7 +290,7 @@ class BackendIntegrationTests {
         // 관리자가 지워도 사진이 정리됩니다.
         String third = upload(owner);
         long c = createItem(owner, "FOUND", "필통", third);
-        mvc.perform(secured(delete("/api/items/" + c), tokenOf("admin", Role.ADMIN))).andExpect(status().isNoContent());
+        mvc.perform(secured(delete("/api/items/" + c), tokenOf("0000", Role.ADMIN))).andExpect(status().isNoContent());
         assertFalse(photoExists(third));
     }
     @Test
@@ -304,8 +308,8 @@ class BackendIntegrationTests {
     }
     @Test
     void adminResetsStudentPasswordButNotAdminPassword() throws Exception {
-        String admin = tokenOf("admin", Role.ADMIN);
-        long adminId = members.findByLoginId("admin").orElseThrow().getId();
+        String admin = tokenOf("0000", Role.ADMIN);
+        long adminId = members.findByLoginId("0000").orElseThrow().getId();
         var studentMember = members.saveAndFlush(new Member("1109", "김민수", passwords.encode("old-password"), Role.STUDENT, false));
         String url = "/api/admin/members/" + studentMember.getId() + "/password";
         mvc.perform(secured(patch(url), admin).contentType(MediaType.APPLICATION_JSON).content("{\"password\":\"short\"}"))
@@ -330,8 +334,8 @@ class BackendIntegrationTests {
     }
     @Test
     void deletingStudentRemovesItemsAndPhotosButAdminIsProtected() throws Exception {
-        String admin = tokenOf("admin", Role.ADMIN);
-        long adminId = members.findByLoginId("admin").orElseThrow().getId();
+        String admin = tokenOf("0000", Role.ADMIN);
+        long adminId = members.findByLoginId("0000").orElseThrow().getId();
         String target = student("1101");
         long targetId = members.findByLoginId("1101").orElseThrow().getId();
         String other = student("1102");
@@ -480,7 +484,7 @@ class BackendIntegrationTests {
     }
     @Test
     void tokenIssuedBeforePasswordResetStillWorks() throws Exception {
-        String admin = tokenOf("admin", Role.ADMIN);
+        String admin = tokenOf("0000", Role.ADMIN);
         String studentToken = student("1101");
         long id = members.findByLoginId("1101").orElseThrow().getId();
         mvc.perform(secured(patch("/api/admin/members/" + id + "/password"), admin).contentType(MediaType.APPLICATION_JSON)
@@ -600,11 +604,11 @@ class BackendIntegrationTests {
                         .content(passwordBody("password123!", "a".repeat(64))))
                 .andExpect(status().isNoContent());
 
-        String admin = tokenOf("admin", Role.ADMIN);
+        String admin = tokenOf("0000", Role.ADMIN);
         mvc.perform(secured(patch("/api/auth/me/password"), admin).contentType(MediaType.APPLICATION_JSON)
                         .content(passwordBody("password123!", "new-password-1")))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.message").value("관리자 계정의 비밀번호는 화면에서 변경할 수 없습니다."));
-        assertTrue(passwords.matches("password123!", members.findByLoginId("admin").orElseThrow().getPasswordHash()));
+        assertTrue(passwords.matches("password123!", members.findByLoginId("0000").orElseThrow().getPasswordHash()));
 
         mvc.perform(patch("/api/auth/me/password").contentType(MediaType.APPLICATION_JSON)
                         .content(passwordBody("password123!", "new-password-1")))
@@ -637,14 +641,14 @@ class BackendIntegrationTests {
     }
     @Test
     void adminRegistersOfficeAndMobilePhoneAndBothShowOnAdminItem() throws Exception {
-        String admin = tokenOf("admin", Role.ADMIN);
+        String admin = tokenOf("0000", Role.ADMIN);
         patchMe(admin, "{\"phone\":\"01011112222\"}")
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("교무실 번호를 입력해주세요."));
         patchMe(admin, "{\"phone\":\"01011112222\",\"officePhone\":\"010-1234-5678\"}")
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("교무실 번호 형식을 확인해 주세요."));
         patchMe(admin, "{\"officePhone\":\"021234567\"}")
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("전화번호를 입력해주세요."));
-        assertNull(members.findByLoginId("admin").orElseThrow().getPhone());
+        assertNull(members.findByLoginId("0000").orElseThrow().getPhone());
         patchMe(admin, "{\"phone\":\"01011112222\",\"officePhone\":\"021234567\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.phone").value("010-1111-2222"))
