@@ -298,11 +298,11 @@ class BackendIntegrationTests {
         String owner = student("1101");
         String unlinked = upload(owner), linked = upload(owner);
         createItem(owner, "FOUND", "우산", linked);
-        // 아직 3시간이 지나지 않았으면 남깁니다.
-        assertEquals(0, imageService.deleteUnlinkedImages(Instant.now().plus(java.time.Duration.ofHours(2))));
+        // 아직 6시간이 지나지 않았으면 남깁니다(작성 중 임시 저장 3시간 + 토큰 1시간보다 김).
+        assertEquals(0, imageService.deleteUnlinkedImages(Instant.now().plus(java.time.Duration.ofHours(5))));
         assertTrue(photoExists(unlinked));
-        // 3시간이 지나면 연결되지 않은 사진만 지웁니다.
-        assertEquals(1, imageService.deleteUnlinkedImages(Instant.now().plus(java.time.Duration.ofHours(3).plusMinutes(1))));
+        // 6시간이 지나면 연결되지 않은 사진만 지웁니다.
+        assertEquals(1, imageService.deleteUnlinkedImages(Instant.now().plus(java.time.Duration.ofHours(6).plusMinutes(1))));
         assertFalse(photoExists(unlinked));
         assertTrue(Files.exists(UPLOADS.resolve(fileName(linked))) && images.existsById(fileName(linked)));
     }

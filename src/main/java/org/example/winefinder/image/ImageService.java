@@ -29,7 +29,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class ImageService {
     // 어떤 물품에도 연결되지 않은 사진은 업로드(파일 생성) 후 이 시간이 지나면 지웁니다.
-    static final Duration UNLINKED_LIFETIME = Duration.ofHours(3);
+    // 글 작성 중 토큰이 만료되면 프론트가 입력 내용을 3시간 보관합니다. 업로드부터 만료까지 최대 1시간(토큰 유효 시간)이 더해지므로 여유 있게 6시간 둡니다.
+    static final Duration UNLINKED_LIFETIME = Duration.ofHours(6);
     private static final String FILE_PATTERN = "[0-9a-f-]{36}\\.jpg";
 
     private final ImageRepository images;
@@ -136,7 +137,7 @@ public class ImageService {
                 });
     }
 
-    // 10분마다 연결되지 않은 지 3시간이 지난 사진을 지웁니다.
+    // 10분마다 연결되지 않은 지 6시간이 지난 사진을 지웁니다.
     @Scheduled(initialDelay = 10, fixedDelay = 10, timeUnit = TimeUnit.MINUTES)
     @Transactional
     public void deleteUnlinkedImages() { deleteUnlinkedImages(Instant.now()); }
