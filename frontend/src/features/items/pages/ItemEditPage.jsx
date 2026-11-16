@@ -1,47 +1,39 @@
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import AppLayout from '../../../shared/layout/AppLayout.jsx'
-import LoadingState from '../../../shared/ui/LoadingState.jsx'
-import ErrorState from '../../../shared/ui/ErrorState.jsx'
-import { useToast } from '../../../shared/ui/Toast.jsx'
-import ItemForm from '../components/ItemForm.jsx'
-import useItem from '../hooks/useItem.js'
-import { updateItem } from '../api/itemRepository.js'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import AppLayout from '../../../shared/layout/AppLayout.jsx';
+import LoadingState from '../../../shared/ui/LoadingState.jsx';
+import ErrorState from '../../../shared/ui/ErrorState.jsx';
+import { useToast } from '../../../shared/ui/Toast.jsx';
+import ItemForm from '../components/ItemForm.jsx';
+import useItem from '../hooks/useItem.js';
+import { updateItem } from '../api/itemRepository.js';
 export default function ItemEditPage() {
-  const { id } = useParams(),
+  const {
+      id
+    } = useParams(),
     navigate = useNavigate(),
     location = useLocation(),
-    notify = useToast()
-  const { item, loading, error, retry } = useItem(id)
-  return (
-    <AppLayout title="물품 수정">
+    notify = useToast();
+  const {
+    item,
+    loading,
+    error,
+    retry
+  } = useItem(id);
+  return <AppLayout title="물품 수정">
       <main className="wrap editor-page" id="main-content">
-        {loading ? (
-          <LoadingState />
-        ) : error ? (
-          <>
-            <ErrorState
-              error={error}
-              onRetry={error.name === 'ItemNotFoundError' ? undefined : retry}
-            />
+        {loading ? <LoadingState /> : error ? <>
+            <ErrorState error={error} onRetry={error.name === 'ItemNotFoundError' ? undefined : retry} />
             <Link to="/" className="back-link">
               ← 목록으로
             </Link>
-          </>
-        ) : (
-          <ItemForm
-            key={item.id}
-            initialValues={item}
-            editing
-            cancelTo={'/items/' + id}
-            cancelState={location.state}
-            onSubmit={async (values) => {
-              await updateItem(id, values)
-              notify('물품 정보를 수정했어요.')
-              navigate('/items/' + id, { replace: true, state: location.state })
-            }}
-          />
-        )}
+          </> : <ItemForm key={item.id} initialValues={item} editing itemId={id} cancelTo={'/items/' + id} cancelState={location.state} onSubmit={async values => {
+        await updateItem(id, values);
+        notify('물품 정보를 수정했어요.');
+        navigate('/items/' + id, {
+          replace: true,
+          state: location.state
+        });
+      }} />}
       </main>
-    </AppLayout>
-  )
+    </AppLayout>;
 }
