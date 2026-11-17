@@ -1,165 +1,140 @@
-# 찾GO 1차 API
+# 찾GO API
 
-기본 경로: `/api`. JSON 요청은 `Content-Type: application/json`을 사용합니다.
-목록·상세·홈·추천·사진 조회는 공개이며, 등록·변경·업로드·마이페이지는 로그인이 필요합니다.
+기본 경로는 `/api`입니다. JSON 요청에는 `Content-Type: application/json`을 씁니다.
+자세한 필드 설명과 예시는 Swagger(`/swagger-ui/index.html`)에 있습니다.
 
-## 인증과 CSRF
+## 인증
 
-인증은 서버 세션과 HttpOnly `JSESSIONID` 쿠키를 사용합니다. JWT나 브라우저 저장소의 사용자 ID로 인증하지 않습니다.
-모든 변경 요청(회원가입·로그인·로그아웃 포함)은 CSRF 토큰을 보내야 합니다.
+- `POST /api/auth/login`과 사진 보기(`GET /api/images/{filename}`)를 뺀 **모든 API**에 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
+- 세션·쿠키·CSRF는 쓰지 않습니다. 로그아웃 API는 없고 프론트가 저장한 토큰을 지우면 됩니다.
+- 토큰 유효 시간은 `expiresIn`초(기본 3600)입니다.
+- `mustChangePassword`가 true면 프론트가 비밀번호 변경 화면으로 보냅니다. `phone`이 null이면 전화번호 입력 화면으로 보냅니다. 서버는 이 상태에서도 다른 API를 막지 않습니다.
 
-1. `GET /auth/csrf` → `{ "headerName": "X-CSRF-TOKEN", "token": "..." }`
-2. 모든 요청에 `credentials: 'include'` 사용
-3. POST/PUT/PATCH/DELETE 요청에 반환된 이름의 헤더와 토큰을 추가
-4. 로그인·로그아웃 후 기존 토큰을 버리고 다시 `/auth/csrf` 호출
-
-| 메서드 | 경로 | 요청 / 응답 |
-| --- | --- | --- |
-| GET | `/auth/csrf` | CSRF 헤더 이름과 토큰 |
-| POST | `/auth/signup` | JSON `{email, name, password}` → 201 회원 정보 |
-| POST | `/auth/login` | **폼 인코딩** `email=...&password=...` → 204 |
-| GET | `/auth/me` | 로그인 사용자 `{id, name, email}` |
-| POST | `/auth/logout` | 204, 세션 종료 |
-
-이메일은 소문자로 통일합니다. 이름은 1~40자, 비밀번호는 8~64자입니다.
-회원가입은 자동 로그인하지 않습니다. 비밀번호 해시는 응답에 포함되지 않습니다.
-비밀번호를 평문이나 localStorage에 저장하지 마세요.
-
-```js
-const API = 'http://localhost:8080/api'; // 배포 시 같은 사이트의 '/api'
-let csrf;
-
-async function refreshCsrf() {
-  const res = await fetch(`${API}/auth/csrf`, { credentials: 'include' });
-  if (!res.ok) throw new Error('인증 토큰을 가져오지 못했습니다.');
-  csrf = await res.json();
-}
-
-async function api(path, { method = 'GET', body, form = false } = {}) {
-  const headers = {};
-  if (!['GET', 'HEAD'].includes(method)) {
-    if (!csrf) await refreshCsrf();
-    headers[csrf.headerName] = csrf.token;
-  }
-  if (body !== undefined && !form) headers['Content-Type'] = 'application/json';
-  const res = await fetch(API + path, {
-    method, credentials: 'include', headers,
-    body: body === undefined ? undefined : form ? body : JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.message || '요청을 처리하지 못했습니다.');
-  }
-  return res.status === 204 ? undefined : res.json();
-}
-
-await api('/auth/signup', {
-  method: 'POST', body: { email: 'student@example.com', name: '테스트 학생', password: 'example-password' },
-});
-await api('/auth/login', {
-  method: 'POST', form: true,
-  body: new URLSearchParams({ email: 'student@example.com', password: 'example-password' }),
-});
-csrf = undefined;
-await refreshCsrf();
-const me = await api('/auth/me');
-// 로그아웃 뒤에도 csrf = undefined; await refreshCsrf(); 처리
-```
-
-`form: true`는 URLSearchParams 또는 FormData를 전달할 때 사용합니다.
-브라우저가 Content-Type(사진의 경우 boundary 포함)을 설정하도록 직접 지정하지 않습니다.
-CSRF 오류(403) 시 토큰을 갱신하고 사용자에게 재시도를 안내하세요. 권한 오류와 구분 없이 자동 재전송하지 마세요.
-
-## 물품
-
-| 메서드 | 경로 | 기능 |
-| --- | --- | --- |
-| GET | `/items` | 검색·목록 |
-| GET | `/items/{id}` | 상세 |
-| POST | `/items` | 등록 → 201 |
-| PUT | `/items/{id}` | 전체 수정 |
-| PATCH | `/items/{id}/status` | `{ "status": "RESOLVED" }` 또는 `OPEN` |
-| DELETE | `/items/{id}` | 삭제 → 204 |
-| GET | `/me/items` | 내 물품 목록 |
-| GET | `/home` | 통계와 최근 분실물·습득물 |
-| GET | `/items/similar?name=우산&type=LOST` | 반대 유형의 미해결 물품 키워드 추천 |
-
-목록과 내 물품은 같은 쿼리 파라미터를 지원합니다.
-
-| 파라미터 | 값 |
+| 상황 | 응답 |
 | --- | --- |
-| `keyword` | 이름·설명·장소·보관 장소의 부분 문자열. 최대 100자 |
-| `type` | `LOST` / `FOUND`, 생략 시 전체 |
-| `status` | `OPEN` / `RESOLVED`, 생략 시 전체 |
-| `sort` | `latest`(기본) / `oldest` |
-| `page` | 0부터 시작, 기본 0 |
-| `size` | 1~100, 기본 20 |
+| 토큰 없음·잘못된 토큰·삭제된 회원 | 401 `{"message": "로그인이 필요한 기능입니다."}` |
+| 토큰 만료 | 401 `{"message": "로그인이 만료되었습니다. 다시 로그인해주세요."}` |
+| 학생이 `/api/admin/**` 호출 | 403 `{"message": "관리자만 사용할 수 있는 기능입니다."}` |
 
-응답 형식:
+**글 작성 중 토큰이 만료되면(프론트엔드 처리)**: 등록·수정 화면에서 401 만료 응답을 받으면 입력 중인 내용을 브라우저(localStorage)에 저장하고 로그아웃한 뒤 로그인 화면으로 보냅니다. 다시 로그인하면 저장한 내용을 불러옵니다. 저장 내용은 **3시간** 동안만 유지하고 지난 것은 버립니다.
+- 업로드만 하고 물품에 연결하지 않은 사진은 업로드 6시간 뒤 서버에서 지워집니다. 임시 저장(3시간)보다 길어서 불러온 사진도 그대로 쓸 수 있습니다.
 
-```json
-{
-  "content": [],
-  "page": 0,
-  "size": 20,
-  "totalElements": 0,
-  "totalPages": 0,
-  "first": true,
-  "last": true
-}
-```
+## 오류 형식
 
-등록/전체 수정 요청 예:
+모든 오류는 `{"message": "..."}` 형식입니다. 로그인 요청의 빈 칸 오류만 아래 형식입니다.
 
 ```json
-{
-  "type": "FOUND",
-  "name": "검정 우산",
-  "description": "손잡이에 파란 스티커가 있습니다.",
-  "status": "OPEN",
-  "location": "도서관",
-  "storageLocation": "학생회실",
-  "imageUrl": null,
-  "lostFoundAt": "2026-10-01"
-}
+{"message": "입력값을 확인해 주세요.", "errors": ["loginId: 아이디를 입력해주세요."]}
 ```
 
-- 유형·이름·설명·장소·날짜는 필수이며 미래 날짜는 허용하지 않습니다.
-- 이름·장소·보관 장소는 최대 100자, 설명은 최대 2000자입니다.
-- 등록 시 `status` 생략은 `OPEN`. 전체 수정에서는 필수입니다.
-- `imageUrl`은 사진 업로드 API가 반환한 본인 사진 URL 한 개 또는 null/빈 문자열입니다.
-- 분실물의 `storageLocation`은 비웁니다. 전체 수정에서 선택 필드를 비우면 기존 값도 제거합니다.
-- 서버가 `id`, `userId`, `createdAt`을 정하며 응답에는 위 필드와 함께 반환합니다.
-- 다른 계정의 수정·상태 변경·삭제는 403입니다.
-- 날짜는 `YYYY-MM-DD`, 등록 일시는 `YYYY-MM-DDTHH:mm:ss` 형식입니다.
-- 추천은 반대 유형의 미해결 물품 중 최근 100건을 대상으로 이름·설명의 키워드 일치 수를 비교해 최대 3건을 반환합니다.
-  `excludeId`로 수정 중인 물품을 제외할 수 있습니다. AI 분석은 사용하지 않습니다.
-- `/home` 응답: `{total, lost, found, resolved, recentLost, recentFound}`. 최근 목록은 각각 최대 3건입니다.
+## API 목록
 
-## 사진 한 장
+| API | Method | 경로 | 접근 | 성공 |
+| --- | --- | --- | --- | --- |
+| 로그인 | POST | `/api/auth/login` | 누구나 | 200 `{accessToken, tokenType, expiresIn, user: {id, loginId, name, phone, officePhone, role, mustChangePassword}}` |
+| 내 정보 | GET | `/api/auth/me` | 토큰 | 200 `{id, loginId, name, phone, officePhone, role, mustChangePassword, createdAt}` |
+| 비밀번호 변경 | PATCH | `/api/auth/me/password` | 토큰(학생) | 204 |
+| 연락처 변경 | PATCH | `/api/auth/me` | 토큰 | 200 내 정보 |
+| 물품 목록·검색 | GET | `/api/items` | 토큰 | 200 페이지 |
+| 물품 상세 | GET | `/api/items/{id}` | 토큰 | 200 물품 + `userName, userPhone, userOfficePhone` |
+| 내 물품 목록 | GET | `/api/me/items` | 토큰 | 200 페이지 |
+| 비슷한 물품 추천 | GET | `/api/items/similar` | 토큰 | 200 물품 최대 3건 |
+| 사진 업로드 | POST | `/api/images` | 토큰 | 201 `{imageUrl}` |
+| 사진 보기 | GET | `/api/images/{filename}` | 누구나 | 200 JPEG |
+| 물품 등록 | POST | `/api/items` | 토큰 | 201 물품 |
+| 물품 수정 | PUT | `/api/items/{id}` | 작성자 | 200 물품 |
+| 해결 상태 변경 | PATCH | `/api/items/{id}/status` | 작성자 | 200 물품 |
+| 물품 삭제 | DELETE | `/api/items/{id}` | 작성자·관리자 | 204 |
+| 학생 목록 | GET | `/api/admin/members` | 관리자 | 200 `[{id, loginId, name, phone, mustChangePassword, createdAt, itemCount}]` |
+| 학생 추가 | POST | `/api/admin/members` | 관리자 | 201 학생 목록과 같은 형식(`itemCount`는 0) |
+| 비밀번호 초기화 | PATCH | `/api/admin/members/{id}/password` | 관리자 | 204 |
+| 학생 삭제 | DELETE | `/api/admin/members/{id}` | 관리자 | 204 |
 
-`POST /images`: multipart/form-data의 `file` 필드 → 201 `{ "imageUrl": "/api/images/UUID.jpg" }`
+### 로그인·내 정보
 
-JPG/PNG 5MB 이하, 최대 2천만 화소를 허용합니다. 서버에서 최대 긴 변 1600px의 JPEG로 다시 저장합니다.
-WEBP는 React에서 JPEG로 변환 후 전송하세요. 기존 데모의 사진 크기 변환도 JPEG를 출력합니다.
-원본 파일명과 메타데이터는 저장하지 않습니다. 사진은 물품과 동일하게 공개 조회됩니다.
-등록 전에 업로드한 사진도 저장되며, 미사용 사진 자동 정리는 추후 작업입니다.
+- 로그인 `{loginId, password}`
+  - 학생 아이디는 숫자 4자리, 관리자는 `0000`입니다. 학생과 관리자는 같은 로그인 화면을 쓰고 응답의 `user.role`(`STUDENT`/`ADMIN`)로 구분합니다.
+  - 틀리면 401 "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요."입니다. 어느 쪽이 틀렸는지는 알려 주지 않습니다.
+- 비밀번호 변경 `{currentPassword, newPassword}`
+  - 성공하면 `mustChangePassword`가 false가 됩니다.
+  - 400 "비밀번호는 8~64자로 입력해주세요." / 400 "현재 비밀번호가 올바르지 않습니다." / 관리자 계정은 403 "관리자 계정의 비밀번호는 화면에서 변경할 수 없습니다."
+- 연락처 변경 `{phone, officePhone}`
+  - `phone`은 필수이며 지울 수 없습니다. 비우면 400 "전화번호를 입력해주세요."입니다.
+  - 관리자는 `officePhone`(교무실 번호, 예: `02-123-4567`)도 필수입니다. 학생이 보낸 `officePhone`은 무시합니다.
+  - 형식이 틀리면 400 "전화번호 형식을 확인해 주세요." / "교무실 번호 형식을 확인해 주세요."입니다.
+
+### 물품
+
+물품 JSON 필드는 `id, userId, type(LOST/FOUND), itemCategory, name, description, status(OPEN/RESOLVED), location, storageLocation, imageUrl, lostFoundAt(YYYY-MM-DD), createdAt(YYYY-MM-DDTHH:mm:ss)`입니다.
+상세에만 `userName`, `userPhone`, `userOfficePhone`(관리자 글만, 학생 글은 null)이 추가됩니다.
+
+- **목록 쿼리**: `keyword`(100자 이하), `type`, `status`, `itemCategory`, `sort`(`latest` 기본/`oldest`), `page`(0부터), `size`(1~100, 기본 20)
+  - 등록 일시(`createdAt`) 순으로 정렬하고, 같은 시각이면 id 순입니다.
+  - 응답은 `{content, page, size, totalElements, totalPages, first, last}`입니다.
+- **등록·수정**
+  - 필수: `type, name, description, location, lostFoundAt`. 습득물(FOUND)은 `storageLocation`도 필수입니다.
+  - 선택: `storageLocation`(분실물), `imageUrl`, `itemCategory`
+  - `itemCategory`(물품 종류)는 `전자기기`, `지갑/카드`, `의류`, `가방`, `필기구`, `기타` 중 하나이거나 비워 둡니다. 다른 값은 400 "물품 종류를 확인해주세요."입니다. 목록에서 같은 값으로 거를 수 있습니다.
+  - 수정은 `status`도 필수이고, 선택 항목을 비우면 기존 값도 지웁니다.
+  - 분실물(LOST)은 `storageLocation`을 보내도 null로 저장합니다.
+  - 글자 수는 앞뒤 공백을 지운 뒤 셉니다. 이름·장소·보관 장소는 100자, 설명은 2000자까지입니다.
+  - 오늘(Asia/Seoul) 이후 날짜는 400입니다.
+- **주요 오류**
+  - 미입력은 "이름을 입력해주세요."처럼 항목별 문구입니다. 습득물 보관 장소를 비우면 "보관 장소를 입력해주세요."입니다.
+  - 403 "본인이 등록한 물품만 수정·삭제할 수 있습니다."
+  - 404 "해당 물품을 찾을 수 없습니다. 삭제되었거나 주소가 잘못되었을 수 있습니다."
+
+### 사진
+
+1. `POST /api/images`에 multipart `file`(JPG/PNG, 5MB 이하)로 올립니다. 응답의 `imageUrl`을 물품 등록·수정의 `imageUrl`에 넣습니다.
+2. 본인이 올린 사진만 첨부할 수 있습니다. 다른 학생의 사진이면 400입니다.
+3. 6시간 안에 물품에 연결하지 않으면 사진이 자동으로 지워집니다.
+
+| 오류 | 응답 |
+| --- | --- |
+| 5MB 초과 | 413 "JPG/PNG, 5MB 이하 사진만 올릴 수 있습니다. 다른 사진을 선택해주세요." |
+| GIF 등 다른 형식 | 400 (같은 문구) |
+| 사진이 아니거나 읽을 수 없음 | 400 "사진을 처리하지 못했습니다. 다른 사진을 선택해주세요." |
+
+### 관리자
+
+- 학생 목록: 관리자 계정은 빼고 아이디 순입니다. `phone`(입력 전이면 null), `mustChangePassword`(비밀번호를 아직 안 바꿨으면 true), `createdAt`(등록일), `itemCount`(등록한 물품 수)를 함께 줍니다. 검색·페이지는 없으니 화면에서 거릅니다.
+- 학생 추가 `{loginId, name, phone(선택), password}`
+  - 400 "아이디는 숫자 4자리로 입력해주세요." / 409 "이미 등록된 아이디입니다."
+  - 추가된 학생은 `mustChangePassword=true`입니다.
+- 비밀번호 초기화 `{password}`(8~64자): 학생은 `mustChangePassword=true`가 됩니다. 대상이 관리자면 403입니다.
+- 학생 삭제: 그 학생의 물품·사진도 함께 지웁니다. 대상이 관리자면 403 "관리자 계정은 삭제할 수 없습니다."입니다.
+- 없는 회원은 404 "해당 학생을 찾을 수 없습니다."입니다.
+
+## 프론트엔드 연결 예시
 
 ```js
-const data = new FormData();
-data.append('file', file); // JPG/PNG 파일
-const { imageUrl } = await api('/images', { method: 'POST', body: data, form: true });
-// 이후 POST /items 또는 PUT /items/{id} 본문에 imageUrl 포함
-// 다른 origin의 백엔드 직접 사용 시 <img src={'http://localhost:8080' + imageUrl} />
+const API = 'http://localhost:8080/api';
+
+async function api(path, { method = 'GET', body } = {}) {
+  const token = localStorage.getItem('accessToken');
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: {
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) {
+    localStorage.removeItem('accessToken'); // 만료 또는 로그인 필요 → 로그인 화면으로
+  }
+  if (!res.ok) throw new Error((await res.json()).message);
+  return res.status === 204 ? null : res.json();
+}
+
+// 로그인
+const { accessToken, user } = await api('/auth/login', { method: 'POST', body: { loginId: '1109', password: '...' } });
+localStorage.setItem('accessToken', accessToken);
 ```
 
-## 오류
+사진은 `imageUrl`을 `<img src>`에 그대로 넣으면 됩니다. 사진 보기는 토큰이 필요 없습니다(파일 이름은 무작위 UUID). 사진 올리기(`POST /api/images`)는 토큰이 필요합니다.
 
-- 400: 잘못된 입력/날짜/필터/파일
-- 401: 로그인 필요 또는 비밀번호 오류
-- 403: 작성자·사진 소유권 오류, CSRF 오류, 허용되지 않은 origin
-- 404: 물품/사진 없음
-- 409: 중복 이메일 등 데이터 충돌
-- 413: 업로드 크기 제한 초과
-
-비즈니스 오류는 `{ "message": "..." }`, 입력 검증 오류는 추가로 `errors` 목록을 반환합니다.
+```jsx
+<img src={`http://localhost:8080${item.imageUrl}`} alt={item.name} />
+```

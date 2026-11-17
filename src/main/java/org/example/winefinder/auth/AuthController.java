@@ -2,6 +2,7 @@ package org.example.winefinder.auth;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
@@ -9,54 +10,85 @@ import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.*;
 
-@Tag(name = "회원 인증", description = "회원가입, 내 정보, CSRF 토큰")
+@Tag(name = "회원 인증", description = "로그인, 내 정보, 비밀번호·전화번호 변경")
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor // 생성자 자동 생성 (final 붙여진거)
 public class AuthController {
     private final AuthService auth;
 
-    @Schema(description = "회원가입 입력 정보")
-    public record SignupRequest(
-            @Schema(description = "로그인에 사용할 이메일. 최대 254자", example = "student@example.com", requiredMode = Schema.RequiredMode.REQUIRED)
-            @NotBlank @Email @Size(max = 254) String email,
-            @Schema(description = "표시할 이름. 1~40자", example = "테스트 학생", requiredMode = Schema.RequiredMode.REQUIRED)
-            @NotBlank @Size(max = 40) String name,
-            @Schema(description = "비밀번호. 8~64자", example = "example-password", accessMode = Schema.AccessMode.WRITE_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
-            @NotNull @Size(min = 8, max = 64) String password) {}
+    @Schema(description = "로그인 입력 정보")
+    public record LoginRequest(
+            @Schema(description = "로그인 아이디. 학생은 숫자 4자리, 관리자는 0000", example = "1109", requiredMode = Schema.RequiredMode.REQUIRED)
+            @NotBlank(message = "아이디를 입력해주세요.") String loginId,
+            @Schema(description = "비밀번호", example = "example-password", accessMode = Schema.AccessMode.WRITE_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
+            @NotEmpty(message = "비밀번호를 입력해주세요.") String password) {}
     /*
-    NotNull - null : X / **( ""," " 빈 문자열 허용)
+    NotEmpty - null,"" : X / **(" " 공백 허용 - 비밀번호는 공백을 지우지 않음)
     NotBlank - null,""," " : X / **(문자열 전용)
     */
-    // 토큰
-    public record CsrfResponse( //record - 데이터 전달 객체(DTO) 생성
-            @Schema(description = "변경 요청에 추가할 헤더 이름", example = "X-CSRF-TOKEN") String headerName,
-            @Schema(description = "서버에서 발급된 토큰. 로그인·로그아웃 후 다시 조회하세요.") String token) {}
 
-    @Operation(summary = "CSRF 토큰 조회", description = "회원가입·로그인·로그아웃을 포함한 모든 변경 요청 전에 호출하세요. 반환된 headerName 이름으로 token을 전송합니다. 로그인·로그아웃 후 다시 조회하세요.")
-    @GetMapping("/csrf") // 토큰 정보 프론트에 전달
-    public CsrfResponse csrf(CsrfToken token) {
-        return new CsrfResponse(token.getHeaderName(), token.getToken());
+    @Schema(description = "로그인 응답에 들어가는 회원 정보")
+    public record LoginUser(
+            @Schema(description = "회원 ID", example = "1") Long id,
+            @Schema(description = "로그인 아이디", example = "1109") String loginId,
+            @Schema(description = "이름", example = "홍길동") String name,
+            @Schema(description = "휴대전화 번호. 아직 입력하지 않았으면 null(전화번호 입력 화면으로 보내야 합니다)", example = "010-1234-5678", nullable = true) String phone,
+            @Schema(description = "교무실 번호. 관리자만 있고 학생은 null", example = "02-123-4567", nullable = true) String officePhone,
+            @Schema(description = "역할: STUDENT=학생, ADMIN=관리자", example = "STUDENT") Role role,
+            @Schema(description = "true면 비밀번호 변경 화면으로 보내야 합니다", example = "true") boolean mustChangePassword) {
+        static LoginUser from(Member m) {
+            return new LoginUser(m.getId(), m.getLoginId(), m.getName(), m.getPhone(), m.getOfficePhone(), m.getRole(), m.isMustChangePassword());
+        }
     }
 
-    // 회원가입
-    @Operation(summary = "회원가입", description = "이메일·이름·비밀번호로 가입합니다. 이메일은 소문자로 저장하며 중복 시 409입니다. 가입 후 별도로 로그인해야 합니다. 이메일 소유 인증은 하지 않습니다. CSRF 토큰이 필요합니다.")
-    @PostMapping("/signup") //
-    @ResponseStatus(HttpStatus.CREATED) //가입 성공 시 create 상태코드 전송 (201)
-    public MemberResponse signup(@Valid @RequestBody SignupRequest request) {
-        //Valid - DTO 조건 검사
-        //SignupRequest - 프론트 회원가입 정보 DTO
-        return auth.signup(request.email(), request.name(), request.password()); // 서비스에 정보 전달 - 회원가입
+    @Schema(description = "로그인 결과")
+    public record LoginResponse(
+            @Schema(description = "API 호출 시 Authorization: Bearer 뒤에 붙일 토큰") String accessToken,
+            @Schema(description = "토큰 종류", example = "Bearer") String tokenType,
+            @Schema(description = "토큰 유효 시간(초)", example = "3600") long expiresIn,
+            @Schema(description = "로그인한 회원") LoginUser user) {}
+
+    @Schema(description = "비밀번호 변경 입력 정보")
+    public record PasswordChangeRequest(
+            @Schema(description = "현재 비밀번호", example = "initial-password", accessMode = Schema.AccessMode.WRITE_ONLY, requiredMode = Schema.RequiredMode.REQUIRED) String currentPassword,
+            @Schema(description = "새 비밀번호 (8~64자)", example = "new-password-1", accessMode = Schema.AccessMode.WRITE_ONLY, requiredMode = Schema.RequiredMode.REQUIRED) String newPassword) {}
+
+    @Schema(description = "전화번호 변경 입력 정보")
+    public record PhoneChangeRequest(
+            @Schema(description = "휴대전화 번호(필수). 01012345678, 010-1234-5678 모두 가능. 지울 수 없습니다", example = "010-1234-5678", requiredMode = Schema.RequiredMode.REQUIRED) String phone,
+            @Schema(description = "교무실 번호. 관리자는 필수, 학생은 보내도 무시합니다", example = "02-123-4567", nullable = true) String officePhone) {}
+
+    @Operation(summary = "로그인", description = "토큰 없이 호출합니다. 아이디·비밀번호가 맞으면 accessToken을 발급합니다. "
+            + "틀리면 어느 쪽이 틀렸는지 알려주지 않고 401입니다. 빈 칸은 400입니다. 로그아웃 API는 없으며 프론트엔드가 토큰을 지웁니다.")
+    @PostMapping("/login")
+    public LoginResponse login(@Valid @RequestBody LoginRequest request) {
+        Member member = auth.login(request.loginId(), request.password());
+        return new LoginResponse(auth.issueToken(member), "Bearer", auth.tokenExpiresSeconds(), LoginUser.from(member));
     }
 
-
-    @Operation(summary = "내 회원 정보 조회", description = "로그인 세션이 필요합니다. 비밀번호 및 비밀번호 해시는 반환하지 않습니다. 로그인하지 않았으면 401입니다.")
+    @Operation(summary = "내 회원 정보 조회", description = "토큰이 필요합니다. 비밀번호 및 비밀번호 해시는 반환하지 않습니다. 토큰이 없거나 잘못됐으면 401입니다.")
     @GetMapping("/me")
     public MemberResponse me(@Parameter(hidden = true) Authentication authentication) {
         //@Parameter(hidden = true) - Swagger에 입력항목에서 삭제
         return MemberResponse.from(auth.current(authentication));//authentication에 맞는 회원 MemberResponse 정보 조회
+    }
+
+    @Operation(summary = "내 비밀번호 변경", description = "토큰이 필요합니다. 성공하면 204이고 mustChangePassword가 false가 됩니다. "
+            + "새 비밀번호가 8~64자가 아니거나 현재 비밀번호가 틀리면 400, 관리자 계정은 403입니다.")
+    @ApiResponse(responseCode = "204", description = "변경됨")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PatchMapping("/me/password")
+    public void changePassword(@Parameter(hidden = true) Authentication authentication, @RequestBody PasswordChangeRequest request) {
+        auth.changePassword(authentication, request.currentPassword(), request.newPassword());
+    }
+
+    @Operation(summary = "내 연락처 변경", description = "토큰이 필요합니다. 전화번호는 지울 수 없어 phone이 null이거나 빈 값이면 400 \"전화번호를 입력해주세요.\"입니다. "
+            + "관리자는 officePhone(교무실 번호)도 필수입니다. 010-1234-5678 모양으로 저장하고 내 정보를 돌려줍니다. 형식이 틀리면 400입니다.")
+    @PatchMapping("/me")
+    public MemberResponse changePhone(@Parameter(hidden = true) Authentication authentication, @RequestBody PhoneChangeRequest request) {
+        return MemberResponse.from(auth.changePhone(authentication, request.phone(), request.officePhone()));
     }
 }

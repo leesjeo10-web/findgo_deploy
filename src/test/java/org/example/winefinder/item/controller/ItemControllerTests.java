@@ -17,10 +17,10 @@ class ItemControllerTests {
 
     @Test
     void acceptsCombinedSearchParameters() throws Exception {
-        when(service.findAll("우산", ItemType.FOUND, null, "latest", 0, 20, null)).thenReturn(Page.empty());
+        when(service.findAll("우산", ItemType.FOUND, null, null, "latest", 0, 20, null)).thenReturn(Page.empty());
         mvc.perform(get("/api/items").param("keyword", "우산").param("type", "FOUND"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.content").isArray());
-        verify(service).findAll("우산", ItemType.FOUND, null, "latest", 0, 20, null);
+        verify(service).findAll("우산", ItemType.FOUND, null, null, "latest", 0, 20, null);
     }
     @Test
     void invalidTypeReturnsBadRequest() throws Exception {

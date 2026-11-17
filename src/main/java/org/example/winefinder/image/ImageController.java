@@ -24,13 +24,14 @@ public class ImageController {
     public record ImageUploadResponse(
             @Schema(description = "물품 등록·수정 시 imageUrl에 넣을 사진 경로", example = "/api/images/123e4567-e89b-12d3-a456-426614174000.jpg") String imageUrl) {}
 
-    @Operation(summary = "물품 사진 업로드", description = "로그인과 CSRF 토큰이 필요합니다. file 필드에 JPG/PNG 사진 한 장을 전송하세요. 5MB·2천만 화소 이하를 허용하고 긴 변 최대 1600px JPEG로 저장합니다. WEBP는 프론트에서 JPEG로 변환하세요.")
+    @Operation(summary = "물품 사진 업로드", description = "토큰이 필요합니다. file 필드에 JPG/PNG 사진 한 장을 전송하세요. 5MB·2천만 화소 이하를 허용하고 긴 변 최대 1600px JPEG로 저장합니다. 다른 형식은 받지 않습니다. "
+            + "5MB 초과는 413, 처리할 수 없는 사진은 400입니다. 6시간 안에 물품에 연결하지 않으면 자동으로 지워집니다.")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public ImageUploadResponse upload(@RequestParam @Parameter(description = "5MB 이하의 JPG 또는 PNG 사진 한 장") MultipartFile file, @Parameter(hidden = true) Authentication user) {
         return new ImageUploadResponse(images.upload(file, auth.current(user).getId()));
     }
-    @Operation(summary = "물품 사진 조회", description = "업로드 시 반환된 imageUrl로 공개 JPEG 사진을 조회합니다. 존재하지 않는 파일은 404입니다.")
+    @Operation(summary = "물품 사진 조회", description = "토큰 없이 조회할 수 있습니다. 프론트엔드는 imageUrl을 <img src>에 그대로 넣으면 됩니다. 파일 이름은 무작위(UUID)입니다. 존재하지 않는 파일은 404입니다.")
     @GetMapping("/{filename}")
     public ResponseEntity<Resource> read(@PathVariable @Parameter(description = "업로드 응답 URL에 포함된 JPEG 파일명", example = "123e4567-e89b-12d3-a456-426614174000.jpg") String filename) {
         return ResponseEntity.ok().contentType(MediaType.IMAGE_JPEG)

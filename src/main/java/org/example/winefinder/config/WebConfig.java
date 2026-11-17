@@ -13,6 +13,6 @@ public class WebConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**").allowedOrigins(origins)
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                .allowedHeaders("Content-Type", "X-CSRF-TOKEN").allowCredentials(true);
+                .allowedHeaders("Content-Type", "Authorization");
     }
 }
