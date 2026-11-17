@@ -11,6 +11,7 @@ import { ItemTypeFilters } from '../../items/components/ItemFilters.jsx';
 import { ITEM_STATUSES } from '../../items/model/itemModel.js';
 import useItemList from '../../items/hooks/useItemList.js';
 import { getItemCounts } from '../../items/api/itemRepository.js';
+import ProfileSettings from '../components/ProfileSettings.jsx';
 import MyItemSummary from '../components/MyItemSummary.jsx';
 import MyItemList from '../components/MyItemList.jsx';
 import '../styles/my-page.css';
@@ -68,6 +69,7 @@ export default function MyPage() {
             </div>
           </div>
         </section>
+        <ProfileSettings />
         <section aria-labelledby="my-list-title">
           <div className="my-list-heading">
             <h2 id="my-list-title">
