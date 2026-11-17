@@ -1,6 +1,8 @@
 package org.example.winefinder.auth;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.example.winefinder.image.ImageRepository;
 import org.example.winefinder.image.ImageService;
@@ -25,6 +27,12 @@ public class AdminMemberService {
     private final ItemRepository items;
     private final ImageRepository itemImages;
     private final ImageService imageFiles;
+
+    // 회원 id별 등록한 물품 수(학생 목록에 표시)
+    public Map<Long, Long> itemCountsByMember() {
+        return items.countGroupByUserId().stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
+    }
 
     // 학생 목록. 관리자 계정은 빼고 아이디 순으로 돌려줍니다.
     public List<Member> students() {

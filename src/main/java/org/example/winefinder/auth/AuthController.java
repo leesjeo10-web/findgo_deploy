@@ -35,10 +35,12 @@ public class AuthController {
             @Schema(description = "회원 ID", example = "1") Long id,
             @Schema(description = "로그인 아이디", example = "1109") String loginId,
             @Schema(description = "이름", example = "홍길동") String name,
+            @Schema(description = "휴대전화 번호. 아직 입력하지 않았으면 null(전화번호 입력 화면으로 보내야 합니다)", example = "010-1234-5678", nullable = true) String phone,
+            @Schema(description = "교무실 번호. 관리자만 있고 학생은 null", example = "02-123-4567", nullable = true) String officePhone,
             @Schema(description = "역할: STUDENT=학생, ADMIN=관리자", example = "STUDENT") Role role,
             @Schema(description = "true면 비밀번호 변경 화면으로 보내야 합니다", example = "true") boolean mustChangePassword) {
         static LoginUser from(Member m) {
-            return new LoginUser(m.getId(), m.getLoginId(), m.getName(), m.getRole(), m.isMustChangePassword());
+            return new LoginUser(m.getId(), m.getLoginId(), m.getName(), m.getPhone(), m.getOfficePhone(), m.getRole(), m.isMustChangePassword());
         }
     }
 

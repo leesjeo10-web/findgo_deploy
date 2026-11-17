@@ -1,6 +1,7 @@
 package org.example.winefinder.auth;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
 
@@ -43,6 +44,16 @@ public class Member {
     @ColumnDefault("true")
     @Column(nullable = false)
     private boolean mustChangePassword = true;
+
+    // 계정을 만든 일시(관리자 학생 목록의 등록일). 서버가 정하고 바꾸지 않습니다.
+    // 이 칸이 생기기 전에 만든 계정은 null일 수 있어 NULL을 허용합니다.
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    private void onCreate() {
+        if (createdAt == null) createdAt = LocalDateTime.now();
+    }
 
     public Member(String loginId, String name, String passwordHash, Role role, boolean mustChangePassword) { // 회원 객체 생성
         this.loginId = loginId;

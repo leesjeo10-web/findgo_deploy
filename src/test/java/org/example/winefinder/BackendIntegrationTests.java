@@ -184,7 +184,11 @@ class BackendIntegrationTests {
         String admin = tokenOf("0000", Role.ADMIN);
         members.saveAndFlush(new Member("1203", "다학생", "{noop}x", Role.STUDENT, true));
         members.saveAndFlush(new Member("1101", "가학생", "{noop}x", Role.STUDENT, true));
-        members.saveAndFlush(new Member("1109", "나학생", "{noop}x", Role.STUDENT, false));
+        var nah = members.saveAndFlush(new Member("1109", "나학생", "{noop}x", Role.STUDENT, false));
+        nah.changePhone("010-1234-5678");
+        members.saveAndFlush(nah);
+        items.saveAndFlush(new org.example.winefinder.item.entity.Item(nah.getId(), org.example.winefinder.item.entity.ItemType.LOST,
+                "우산", "검정", org.example.winefinder.item.entity.ItemStatus.OPEN, "도서관", null, null, LocalDate.now()));
         mvc.perform(secured(get("/api/admin/members"), admin)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(3))
                 .andExpect(jsonPath("$[0].loginId").value("1101"))
@@ -193,7 +197,14 @@ class BackendIntegrationTests {
                 .andExpect(jsonPath("$[0].name").value("가학생"))
                 .andExpect(jsonPath("$[0].id").isNumber())
                 .andExpect(jsonPath("$[0].passwordHash").doesNotExist())
-                .andExpect(jsonPath("$[0].phone").doesNotExist());
+                // 프론트 학생 관리 화면에 쓰는 값: 전화번호, 비밀번호 변경 필요 여부, 등록일, 물품 수
+                .andExpect(jsonPath("$[0].phone").isEmpty())
+                .andExpect(jsonPath("$[0].mustChangePassword").value(true))
+                .andExpect(jsonPath("$[0].createdAt").isNotEmpty())
+                .andExpect(jsonPath("$[0].itemCount").value(0))
+                .andExpect(jsonPath("$[1].phone").value("010-1234-5678"))
+                .andExpect(jsonPath("$[1].mustChangePassword").value(false))
+                .andExpect(jsonPath("$[1].itemCount").value(1));
     }
     @Test
     void adminAddsStudentWhoMustChangePassword() throws Exception {
@@ -213,7 +224,8 @@ class BackendIntegrationTests {
         // 전화번호를 함께 넣을 수도 있습니다.
         mvc.perform(secured(post("/api/admin/members"), admin).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"loginId\":\"1110\",\"name\":\"이영희\",\"phone\":\"01055556666\",\"password\":\"initial-pass\"}"))
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.phone").doesNotExist());
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.phone").value("010-5555-6666"))
+                .andExpect(jsonPath("$.mustChangePassword").value(true)).andExpect(jsonPath("$.itemCount").value(0));
         assertEquals("010-5555-6666", members.findByLoginId("1110").orElseThrow().getPhone());
         mvc.perform(secured(post("/api/admin/members"), admin).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"loginId\":\"1111\",\"name\":\"박철수\",\"phone\":\"123\",\"password\":\"initial-pass\"}"))
@@ -542,6 +554,7 @@ class BackendIntegrationTests {
                 .andExpect(jsonPath("$.user.name").value("테스트 학생"))
                 .andExpect(jsonPath("$.user.role").value("STUDENT"))
                 .andExpect(jsonPath("$.user.mustChangePassword").value(true))
+                .andExpect(jsonPath("$.user.phone").isEmpty()) // 아직 입력 전이면 null → 전화번호 입력 화면
                 .andExpect(jsonPath("$.user.passwordHash").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
         String token = json.readTree(response).get("accessToken").asText();

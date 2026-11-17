@@ -31,8 +31,8 @@
 
 | API | Method | 경로 | 접근 | 성공 |
 | --- | --- | --- | --- | --- |
-| 로그인 | POST | `/api/auth/login` | 누구나 | 200 `{accessToken, tokenType, expiresIn, user}` |
-| 내 정보 | GET | `/api/auth/me` | 토큰 | 200 `{id, loginId, name, phone, officePhone, role, mustChangePassword}` |
+| 로그인 | POST | `/api/auth/login` | 누구나 | 200 `{accessToken, tokenType, expiresIn, user: {id, loginId, name, phone, officePhone, role, mustChangePassword}}` |
+| 내 정보 | GET | `/api/auth/me` | 토큰 | 200 `{id, loginId, name, phone, officePhone, role, mustChangePassword, createdAt}` |
 | 비밀번호 변경 | PATCH | `/api/auth/me/password` | 토큰(학생) | 204 |
 | 연락처 변경 | PATCH | `/api/auth/me` | 토큰 | 200 내 정보 |
 | 물품 목록·검색 | GET | `/api/items` | 토큰 | 200 페이지 |
@@ -45,8 +45,8 @@
 | 물품 수정 | PUT | `/api/items/{id}` | 작성자 | 200 물품 |
 | 해결 상태 변경 | PATCH | `/api/items/{id}/status` | 작성자 | 200 물품 |
 | 물품 삭제 | DELETE | `/api/items/{id}` | 작성자·관리자 | 204 |
-| 학생 목록 | GET | `/api/admin/members` | 관리자 | 200 `[{id, loginId, name}]` |
-| 학생 추가 | POST | `/api/admin/members` | 관리자 | 201 `{id, loginId, name}` |
+| 학생 목록 | GET | `/api/admin/members` | 관리자 | 200 `[{id, loginId, name, phone, mustChangePassword, createdAt, itemCount}]` |
+| 학생 추가 | POST | `/api/admin/members` | 관리자 | 201 학생 목록과 같은 형식(`itemCount`는 0) |
 | 비밀번호 초기화 | PATCH | `/api/admin/members/{id}/password` | 관리자 | 204 |
 | 학생 삭제 | DELETE | `/api/admin/members/{id}` | 관리자 | 204 |
 
@@ -98,6 +98,7 @@
 
 ### 관리자
 
+- 학생 목록: 관리자 계정은 빼고 아이디 순입니다. `phone`(입력 전이면 null), `mustChangePassword`(비밀번호를 아직 안 바꿨으면 true), `createdAt`(등록일), `itemCount`(등록한 물품 수)를 함께 줍니다. 검색·페이지는 없으니 화면에서 거릅니다.
 - 학생 추가 `{loginId, name, phone(선택), password}`
   - 400 "아이디는 숫자 4자리로 입력해주세요." / 409 "이미 등록된 아이디입니다."
   - 추가된 학생은 `mustChangePassword=true`입니다.
@@ -108,7 +109,7 @@
 ## 프론트엔드 연결 예시
 
 ```js
-const API = 'http://localhost:8081/api';
+const API = 'http://localhost:8080/api';
 
 async function api(path, { method = 'GET', body } = {}) {
   const token = localStorage.getItem('accessToken');
@@ -135,5 +136,5 @@ localStorage.setItem('accessToken', accessToken);
 사진은 `imageUrl`을 `<img src>`에 그대로 넣으면 됩니다. 사진 보기는 토큰이 필요 없습니다(파일 이름은 무작위 UUID). 사진 올리기(`POST /api/images`)는 토큰이 필요합니다.
 
 ```jsx
-<img src={`http://localhost:8081${item.imageUrl}`} alt={item.name} />
+<img src={`http://localhost:8080${item.imageUrl}`} alt={item.name} />
 ```
