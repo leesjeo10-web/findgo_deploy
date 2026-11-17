@@ -1,123 +1,141 @@
-# API 명세서
+> 동기화 기준: webisnoteasy/finder backend-jwt b00af01, docs/API.md (2026-11-14 확인). 아래는 해당 원문이며 B의 구현 범위와 연결 주의사항은 프론트 구조안 마지막 절 참고. 원문 예시 8081과 사용자 전달 주소 8080의 차이는 환경변수로 설정한다.
 
-> **📖 작성 가이드**
->
-> **이 문서의 목적**
->
-> 프론트엔드와 백엔드가 데이터를 주고받을 때 사용할 요청과 응답을 같은 기준으로 정의합니다.
+# 찾GO API
 
----
+기본 경로는 `/api`입니다. JSON 요청에는 `Content-Type: application/json`을 씁니다.
+자세한 필드 설명과 예시는 Swagger(`/swagger-ui/index.html`)에 있습니다.
 
-## 공통 규칙
+## 인증
 
-- 모든 API는 `/api` 아래에 둡니다.
-- 접근 조건이 **토큰 필요**인 API는 요청 헤더에 `Authorization: Bearer {accessToken}`을 넣습니다. `accessToken`은 로그인 응답으로 받은 JWT 토큰입니다. 쿠키와 CSRF 토큰은 쓰지 않습니다.
-- 토큰이 없거나 만료되면 401로 응답합니다. 단, 물품 상세는 토큰 없이도 조회할 수 있고 작성자 연락처(`userPhone`)만 `null`로 보냅니다.
+- `POST /api/auth/login`과 사진 보기(`GET /api/images/{filename}`)를 뺀 **모든 API**에 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
+- 세션·쿠키·CSRF는 쓰지 않습니다. 로그아웃 API는 없고 프론트가 저장한 토큰을 지우면 됩니다.
+- 토큰 유효 시간은 `expiresIn`초(기본 3600)입니다.
+- `mustChangePassword`가 true면 프론트가 비밀번호 변경 화면으로 보냅니다. `phone`이 null이면 전화번호 입력 화면으로 보냅니다. 서버는 이 상태에서도 다른 API를 막지 않습니다.
 
----
-
-## 1. API가 필요한 행동 찾기
-
-- **화면 안에서만 바뀌는 상태**
-  - **로그아웃:** 저장된 토큰과 사용자 정보 삭제 → 물품 목록으로 이동
-  - **입력 검사:** 입력 중인 폼 값, 칸별 1차 검사, 비밀번호 확인 칸 일치 검사
-  - **보관 장소 칸:** 구분이 습득물일 때만 보여 줌. 분실물이면 숨기고 값을 비움
-  - **표시 상태:** 사진 미리보기, 로딩 표시, 버튼, 값이 없는 선택 항목 숨기기, 사진이 없을 때 기본 이미지, 비회원에게 연락처 대신 로그인 안내
-  - **화면 전환:** 삭제 확인창, 취소, 뒤로 가기
-  - **목록 조건:** 검색창에 입력 중인 글자, 주소에 담아 두는 검색 조건
-  - **로그인 만료 시 보관:** 작성 중 입력값, 돌아올 주소
-- **서버에 보관해야 하는 데이터**
-  - **저장**
-    - **회원가입** — 이메일, 이름, 비밀번호, 전화번호(선택)
-    - **사진 올리기** — 사진 파일을 보내고 사진 경로를 받음
-    - **물품 등록** — 구분, 이름, 설명, 장소, 날짜, 보관 장소(습득물일 때 필수), 사진 경로(선택)
-  - **조회**
-    - **로그인** — 이메일, 비밀번호를 보내고 토큰과 사용자 정보를 받음
-    - **로그인 확인** — 새로고침 후 토큰으로 내 정보 조회
-    - **물품 목록·검색** — 검색어, 구분, 상태, 정렬(등록 일시 기준), 페이지
-    - **물품 상세** — 물품 id. 토큰이 있으면 작성자 연락처도 받음
-    - **마이페이지** — 토큰, 구분·상태(선택)
-  - **수정**
-    - **물품 수정·상태 변경** — 물품 id, 등록 항목 전체, 상태. '해결 완료'도 이 API로 status를 바꿔 저장합니다.
-  - **삭제**
-    - **물품 삭제** — 물품 id
-- **API가 없는 행동**
-  - **소유 확인·물건 전달** — 보관 장소에서 직접 하거나 작성자에게 연락해서 하므로 서버에 기록하지 않습니다.
-  - **올리기만 한 사진 정리** — 글에 연결되지 않은 사진은 서버가 3시간 뒤 자동으로 지웁니다.
-  - **채팅, 물품 종류** — 후속 기능이라 첫 버전 API에 넣지 않습니다.
-
----
-
-## 2. API마다 정할 항목
-
-| API | Method | 경로 | 설명 | 접근 조건 | 요청 형식 | 요청 데이터 | 성공 응답 | 실패 응답 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 회원가입 | POST | /api/auth/signup | 새 계정 만들기 | 누구나 | JSON | **필수** email, name, password<br>**선택** phone | **HTTP_201_created**<br>{"id": 1, "name": "테스트 학생", "email": "student@example.com", "phone": "010-1234-5678"} | **HTTP_400_bad_request**<br>{"message": "입력값을 확인해 주세요.", "errors": ["email: 이메일 형식이 올바르지 않습니다."]}<br>**HTTP_409_conflict**<br>{"message": "이미 가입된 이메일입니다. 로그인해주세요."} |
-| 로그인 | POST | /api/auth/login | 토큰과 사용자 정보 발급 | 누구나 | JSON | **필수** email, password | **HTTP_200_ok**<br>{"accessToken": "eyJhbGciOiJIUzI1NiJ9...", "tokenType": "Bearer", "expiresIn": 3600, "user": {"id": 1, "name": "테스트 학생", "email": "student@example.com"}} | **HTTP_401_unauthorized**<br>{"message": "이메일 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요."} |
-| 내 정보 | GET | /api/auth/me | 토큰으로 회원 조회 | 토큰 필요 | X | X | **HTTP_200_ok**<br>{"id": 1, "name": "테스트 학생", "email": "student@example.com", "phone": null} | **HTTP_401_unauthorized**<br>토큰 없음: {"message": "로그인이 필요한 기능입니다."}<br>토큰 만료: {"message": "로그인이 만료되었습니다. 다시 로그인해주세요."} |
-| 물품 목록 | GET | /api/items | 검색·필터·페이지 조회 | 누구나 | 쿼리 파라미터 | **선택** keyword, type, status, sort, page, size | **HTTP_200_ok**<br>{"content": [{"id": 1, "userId": 1, "type": "FOUND", "name": "검정 우산", "description": "손잡이에 파란 스티커가 있습니다.", "status": "OPEN", "location": "도서관", "storageLocation": "학생회실", "imageUrl": null, "lostFoundAt": "2026-10-01", "createdAt": "2026-10-01T09:00:00"}],<br>"page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "first": true, "last": true} | **HTTP_400_bad_request**<br>{"message": "검색어는 100자 이하로 입력하세요."} |
-| 물품 상세 | GET | /api/items/{id} | 물품 1건 조회 | 누구나 (연락처는 토큰 필요) | 경로 변수 | **필수** id<br>**선택** Authorization 헤더 (연락처를 받을 때) | **HTTP_200_ok**<br>{"id": 1, "userId": 1, "userName": "테스트 학생", "userPhone": "010-1234-5678", "type": "FOUND", "name": "검정 우산", "description": "손잡이에 파란 스티커가 있습니다.", "status": "OPEN", "location": "도서관", "storageLocation": "학생회실", "imageUrl": "/api/images/123e4567-e89b-12d3-a456-426614174000.jpg", "lostFoundAt": "2026-10-01", "createdAt": "2026-10-01T09:00:00"}<br>토큰 없음: "userPhone": null | **HTTP_404_not_found**<br>{"message": "해당 물품을 찾을 수 없습니다. 삭제되었거나 주소가 잘못되었을 수 있습니다."} |
-| 내 물품 목록 | GET | /api/me/items | 마이페이지 내 물품·개수 | 토큰 필요 | 쿼리 파라미터 | **선택** type, status, page, size | **HTTP_200_ok**<br>{"content": [{"id": 1, "userId": 1, "type": "FOUND", "name": "검정 우산", "description": "손잡이에 파란 스티커가 있습니다.", "status": "OPEN", "location": "도서관", "storageLocation": "학생회실", "imageUrl": null, "lostFoundAt": "2026-10-01", "createdAt": "2026-10-01T09:00:00"}], "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "first": true, "last": true} | **HTTP_401_unauthorized**<br>토큰 없음: {"message": "로그인이 필요한 기능입니다."}<br>토큰 만료: {"message": "로그인이 만료되었습니다. 다시 로그인해주세요."} |
-| 사진 업로드 | POST | /api/images | 사진 저장 후 경로 반환 | 토큰 필요 | multipart/form-data | **필수** file | **HTTP_201_created**<br>{"imageUrl": "/api/images/123e4567-e89b-12d3-a456-426614174000.jpg"} | **HTTP_400_bad_request**<br>{"message": "사진을 처리하지 못했습니다. 다른 사진을 선택해주세요."}<br>**HTTP_401_unauthorized**<br>토큰 없음: {"message": "로그인이 필요한 기능입니다."}<br>토큰 만료: {"message": "로그인이 만료되었습니다. 다시 로그인해주세요."}<br>**HTTP_413_payload_too_large**<br>{"message": "JPG/PNG, 5MB 이하 사진만 올릴 수 있습니다. 다른 사진을 선택해주세요."} |
-| 물품 등록 | POST | /api/items | 분실물·습득물 등록 | 토큰 필요 | JSON | **필수** type, name, description, location, lostFoundAt<br>**습득물(FOUND)일 때 필수** storageLocation<br>**선택** imageUrl | **HTTP_201_created**<br>{"id": 1, "userId": 1, "type": "FOUND", "name": "검정 우산", "description": "손잡이에 파란 스티커가 있습니다.", "status": "OPEN", "location": "도서관", "storageLocation": "학생회실", "imageUrl": "/api/images/123e4567-e89b-12d3-a456-426614174000.jpg", "lostFoundAt": "2026-10-01", "createdAt": "2026-10-01T09:00:00"} | **HTTP_400_bad_request**<br>미입력: {"message": "이름을 입력해주세요."}<br>보관 장소 미입력(습득물): {"message": "보관 장소를 입력해주세요."}<br>글자 수 초과: {"message": "이름·장소는 100자, 설명은 2000자 이하로 입력하세요."}<br>**HTTP_401_unauthorized**<br>토큰 없음: {"message": "로그인이 필요한 기능입니다."}<br>토큰 만료: {"message": "로그인이 만료되었습니다. 다시 로그인해주세요."} |
-| 물품 수정 | PUT | /api/items/{id} | 물품 전체 수정·상태 변경 | 토큰 필요, 작성자만 | 경로 변수 + JSON | **필수** id, type, name, description, status, location, lostFoundAt<br>**습득물(FOUND)일 때 필수** storageLocation<br>**선택** imageUrl | **HTTP_200_ok**<br>{"id": 1, "userId": 1, "type": "FOUND", "name": "검정 우산", "description": "손잡이에 파란 스티커가 있습니다.", "status": "RESOLVED", "location": "도서관", "storageLocation": "학생회실", "imageUrl": "/api/images/123e4567-e89b-12d3-a456-426614174000.jpg", "lostFoundAt": "2026-10-01", "createdAt": "2026-10-01T09:00:00"} | **HTTP_400_bad_request**<br>미입력: {"message": "이름을 입력해주세요."}<br>보관 장소 미입력(습득물): {"message": "보관 장소를 입력해주세요."}<br>글자 수 초과: {"message": "이름·장소는 100자, 설명은 2000자 이하로 입력하세요."}<br>**HTTP_401_unauthorized**<br>토큰 없음: {"message": "로그인이 필요한 기능입니다."}<br>토큰 만료: {"message": "로그인이 만료되었습니다. 다시 로그인해주세요."}<br>**HTTP_403_forbidden**<br>{"message": "본인이 등록한 물품만 수정·삭제할 수 있습니다."}<br>**HTTP_404_not_found**<br>{"message": "해당 물품을 찾을 수 없습니다. 삭제되었거나 주소가 잘못되었을 수 있습니다."} |
-| 물품 삭제 | DELETE | /api/items/{id} | 물품 삭제 | 토큰 필요, 작성자만 | 경로 변수 | **필수** id | **HTTP_204_no_content** | **HTTP_401_unauthorized**<br>토큰 없음: {"message": "로그인이 필요한 기능입니다."}<br>토큰 만료: {"message": "로그인이 만료되었습니다. 다시 로그인해주세요."}<br>**HTTP_403_forbidden**<br>{"message": "본인이 등록한 물품만 수정·삭제할 수 있습니다."}<br>**HTTP_404_not_found**<br>{"message": "해당 물품을 찾을 수 없습니다. 삭제되었거나 주소가 잘못되었을 수 있습니다."} |
-
-**요청·응답 데이터 참고**
-
-- `sort` : 등록 일시(`createdAt`) 기준으로 정렬합니다. 기본은 최신순이고, 오래된 순을 고를 수 있습니다. 분실·습득 날짜(`lostFoundAt`)는 정렬에 쓰지 않습니다. 미해결 물품만 보려면 `status=OPEN`을 씁니다.
-- `storageLocation` : 습득물(`FOUND`)일 때만 화면에서 입력받고 필수입니다. 백엔드도 습득물일 때만 필수로 검사합니다. 분실물(`LOST`)이면 보내지 않습니다.
-- `phone` : 입력했다면 `010-0000-0000` 형식입니다.
-- `userName`, `userPhone` : 물품 상세에만 있는 작성자 이름과 연락처(작성자의 전화번호)입니다. 토큰 없이 조회하면 `userPhone`은 `null`입니다. 작성자가 전화번호를 입력하지 않았으면 토큰이 있어도 `null`입니다.
-- 물품 삭제나 사진 변경(`imageUrl`을 바꾸거나 비움) 시 예전 사진 파일은 백엔드가 지웁니다.
-
----
-
-## 3. 화면과 맞춰 확인하기
-
-응답을 기다리는 동안 어떤 로딩 상태를 보여줄지, 결과가 비어 있을 때 어떻게 표시할지, 요청이 실패하면 입력값을 유지할지 정합니다.
-
-API의 필드 이름은 **ERD의 데이터 이름**과 비교합니다. 서로 다른 이름이 같은 뜻으로 사용되고 있다면 하나의 기준으로 맞춥니다.
-
-### 로딩과 빈 결과
-
-- **로딩** — 조회 중일 때 표시
-- **빈 결과**
-  - 목록: "아직 등록된 물품이 없습니다. 첫 물품을 등록해 보세요."
-  - 검색: "검색 결과가 없습니다. 다른 검색어로 찾아보거나 분실물로 등록해 두세요."
-  - 마이페이지: "아직 등록한 물품이 없습니다."
-- **더 보기** — `last`가 true면 버튼을 숨김
-- **값이 없는 칸** — `storageLocation`, `phone`, `userPhone`이 `null`이면 칸을 표시하지 않음. 비회원에게는 연락처 자리에 "로그인하면 작성자 연락처를 볼 수 있습니다."를 표시. `imageUrl`이 `null`이면 기본 이미지
-
-### 요청 실패
-
-| 응답 | 상황 | 입력값 | 이후 |
-| --- | --- | --- | --- |
-| 400 | 입력 오류, 검색어 초과, 사진 처리 실패 | 유지 | 고친 뒤 다시 요청 |
-| 401 | 로그인 실패 | 이메일 유지, 비밀번호 비움 | 다시 입력 |
-| 401 | 토큰 없음 | — | 로그인 화면 → 로그인 후 원래 화면으로 이동 |
-| 401 | 토큰 만료 | 작성 중 입력값 임시 보관 | 토큰 삭제 → 로그인 화면 → 로그인 후 원래 화면에서 입력값 복원 |
-| 403 | 작성자가 아님 | 바뀐 것 없음 | 상세 화면 |
-| 404 | 물품 없음 | — | 목록 화면 |
-| 409 | 이미 가입된 이메일 | 유지 | 이메일이 채워진 로그인 화면 |
-| 413 | 사진 형식·용량 초과 | 사진만 비우고 나머지 유지 | 다른 사진 선택 |
-
-### ERD ↔ API 필드명
-
-동일 : id, type, name, description, status, location, email, phone
-
-| ERD (DB) | API |
+| 상황 | 응답 |
 | --- | --- |
-| user_id | userId |
-| storage_location | storageLocation |
-| image_url | imageUrl |
-| lost_found_at | lostFoundAt |
-| created_at | createdAt |
-| members.name (작성자) | userName (물품 상세) |
-| members.phone (작성자) | userPhone (물품 상세, 토큰 없으면 null) |
+| 토큰 없음·잘못된 토큰·삭제된 회원 | 401 `{"message": "로그인이 필요한 기능입니다."}` |
+| 토큰 만료 | 401 `{"message": "로그인이 만료되었습니다. 다시 로그인해주세요."}` |
+| 학생이 `/api/admin/**` 호출 | 403 `{"message": "관리자만 사용할 수 있는 기능입니다."}` |
 
-### ✅ 작성 완료 확인
+**글 작성 중 토큰이 만료되면(프론트엔드 처리)**: 등록·수정 화면에서 401 만료 응답을 받으면 입력 중인 내용을 브라우저(localStorage)에 저장하고 로그아웃한 뒤 로그인 화면으로 보냅니다. 다시 로그인하면 저장한 내용을 불러옵니다. 저장 내용은 **3시간** 동안만 유지하고 지난 것은 버립니다.
+- 업로드만 하고 물품에 연결하지 않은 사진은 업로드 6시간 뒤 서버에서 지워집니다. 임시 저장(3시간)보다 길어서 불러온 사진도 그대로 쓸 수 있습니다.
 
-- [x] 핵심 사용자 행동에 필요한 API가 있습니다.
-- [x] 요청·성공·실패의 데이터 형식이 구분됩니다.
-- [x] 화면 상태와 API 응답이 연결됩니다.
+## 오류 형식
+
+모든 오류는 `{"message": "..."}` 형식입니다. 로그인 요청의 빈 칸 오류만 아래 형식입니다.
+
+```json
+{"message": "입력값을 확인해 주세요.", "errors": ["loginId: 아이디를 입력해주세요."]}
+```
+
+## API 목록
+
+| API | Method | 경로 | 접근 | 성공 |
+| --- | --- | --- | --- | --- |
+| 로그인 | POST | `/api/auth/login` | 누구나 | 200 `{accessToken, tokenType, expiresIn, user}` |
+| 내 정보 | GET | `/api/auth/me` | 토큰 | 200 `{id, loginId, name, phone, officePhone, role, mustChangePassword}` |
+| 비밀번호 변경 | PATCH | `/api/auth/me/password` | 토큰(학생) | 204 |
+| 연락처 변경 | PATCH | `/api/auth/me` | 토큰 | 200 내 정보 |
+| 물품 목록·검색 | GET | `/api/items` | 토큰 | 200 페이지 |
+| 물품 상세 | GET | `/api/items/{id}` | 토큰 | 200 물품 + `userName, userPhone, userOfficePhone` |
+| 내 물품 목록 | GET | `/api/me/items` | 토큰 | 200 페이지 |
+| 비슷한 물품 추천 | GET | `/api/items/similar` | 토큰 | 200 물품 최대 3건 |
+| 사진 업로드 | POST | `/api/images` | 토큰 | 201 `{imageUrl}` |
+| 사진 보기 | GET | `/api/images/{filename}` | 누구나 | 200 JPEG |
+| 물품 등록 | POST | `/api/items` | 토큰 | 201 물품 |
+| 물품 수정 | PUT | `/api/items/{id}` | 작성자 | 200 물품 |
+| 해결 상태 변경 | PATCH | `/api/items/{id}/status` | 작성자 | 200 물품 |
+| 물품 삭제 | DELETE | `/api/items/{id}` | 작성자·관리자 | 204 |
+| 학생 목록 | GET | `/api/admin/members` | 관리자 | 200 `[{id, loginId, name}]` |
+| 학생 추가 | POST | `/api/admin/members` | 관리자 | 201 `{id, loginId, name}` |
+| 비밀번호 초기화 | PATCH | `/api/admin/members/{id}/password` | 관리자 | 204 |
+| 학생 삭제 | DELETE | `/api/admin/members/{id}` | 관리자 | 204 |
+
+### 로그인·내 정보
+
+- 로그인 `{loginId, password}`
+  - 학생 아이디는 숫자 4자리, 관리자는 `0000`입니다. 학생과 관리자는 같은 로그인 화면을 쓰고 응답의 `user.role`(`STUDENT`/`ADMIN`)로 구분합니다.
+  - 틀리면 401 "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요."입니다. 어느 쪽이 틀렸는지는 알려 주지 않습니다.
+- 비밀번호 변경 `{currentPassword, newPassword}`
+  - 성공하면 `mustChangePassword`가 false가 됩니다.
+  - 400 "비밀번호는 8~64자로 입력해주세요." / 400 "현재 비밀번호가 올바르지 않습니다." / 관리자 계정은 403 "관리자 계정의 비밀번호는 화면에서 변경할 수 없습니다."
+- 연락처 변경 `{phone, officePhone}`
+  - `phone`은 필수이며 지울 수 없습니다. 비우면 400 "전화번호를 입력해주세요."입니다.
+  - 관리자는 `officePhone`(교무실 번호, 예: `02-123-4567`)도 필수입니다. 학생이 보낸 `officePhone`은 무시합니다.
+  - 형식이 틀리면 400 "전화번호 형식을 확인해 주세요." / "교무실 번호 형식을 확인해 주세요."입니다.
+
+### 물품
+
+물품 JSON 필드는 `id, userId, type(LOST/FOUND), itemCategory, name, description, status(OPEN/RESOLVED), location, storageLocation, imageUrl, lostFoundAt(YYYY-MM-DD), createdAt(YYYY-MM-DDTHH:mm:ss)`입니다.
+상세에만 `userName`, `userPhone`, `userOfficePhone`(관리자 글만, 학생 글은 null)이 추가됩니다.
+
+- **목록 쿼리**: `keyword`(100자 이하), `type`, `status`, `itemCategory`, `sort`(`latest` 기본/`oldest`), `page`(0부터), `size`(1~100, 기본 20)
+  - 등록 일시(`createdAt`) 순으로 정렬하고, 같은 시각이면 id 순입니다.
+  - 응답은 `{content, page, size, totalElements, totalPages, first, last}`입니다.
+- **등록·수정**
+  - 필수: `type, name, description, location, lostFoundAt`. 습득물(FOUND)은 `storageLocation`도 필수입니다.
+  - 선택: `storageLocation`(분실물), `imageUrl`, `itemCategory`
+  - `itemCategory`(물품 종류)는 `전자기기`, `지갑/카드`, `의류`, `가방`, `필기구`, `기타` 중 하나이거나 비워 둡니다. 다른 값은 400 "물품 종류를 확인해주세요."입니다. 목록에서 같은 값으로 거를 수 있습니다.
+  - 수정은 `status`도 필수이고, 선택 항목을 비우면 기존 값도 지웁니다.
+  - 분실물(LOST)은 `storageLocation`을 보내도 null로 저장합니다.
+  - 글자 수는 앞뒤 공백을 지운 뒤 셉니다. 이름·장소·보관 장소는 100자, 설명은 2000자까지입니다.
+  - 오늘(Asia/Seoul) 이후 날짜는 400입니다.
+- **주요 오류**
+  - 미입력은 "이름을 입력해주세요."처럼 항목별 문구입니다. 습득물 보관 장소를 비우면 "보관 장소를 입력해주세요."입니다.
+  - 403 "본인이 등록한 물품만 수정·삭제할 수 있습니다."
+  - 404 "해당 물품을 찾을 수 없습니다. 삭제되었거나 주소가 잘못되었을 수 있습니다."
+
+### 사진
+
+1. `POST /api/images`에 multipart `file`(JPG/PNG, 5MB 이하)로 올립니다. 응답의 `imageUrl`을 물품 등록·수정의 `imageUrl`에 넣습니다.
+2. 본인이 올린 사진만 첨부할 수 있습니다. 다른 학생의 사진이면 400입니다.
+3. 6시간 안에 물품에 연결하지 않으면 사진이 자동으로 지워집니다.
+
+| 오류 | 응답 |
+| --- | --- |
+| 5MB 초과 | 413 "JPG/PNG, 5MB 이하 사진만 올릴 수 있습니다. 다른 사진을 선택해주세요." |
+| GIF 등 다른 형식 | 400 (같은 문구) |
+| 사진이 아니거나 읽을 수 없음 | 400 "사진을 처리하지 못했습니다. 다른 사진을 선택해주세요." |
+
+### 관리자
+
+- 학생 추가 `{loginId, name, phone(선택), password}`
+  - 400 "아이디는 숫자 4자리로 입력해주세요." / 409 "이미 등록된 아이디입니다."
+  - 추가된 학생은 `mustChangePassword=true`입니다.
+- 비밀번호 초기화 `{password}`(8~64자): 학생은 `mustChangePassword=true`가 됩니다. 대상이 관리자면 403입니다.
+- 학생 삭제: 그 학생의 물품·사진도 함께 지웁니다. 대상이 관리자면 403 "관리자 계정은 삭제할 수 없습니다."입니다.
+- 없는 회원은 404 "해당 학생을 찾을 수 없습니다."입니다.
+
+## 프론트엔드 연결 예시
+
+```js
+const API = 'http://localhost:8081/api';
+
+async function api(path, { method = 'GET', body } = {}) {
+  const token = localStorage.getItem('accessToken');
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: {
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) {
+    localStorage.removeItem('accessToken'); // 만료 또는 로그인 필요 → 로그인 화면으로
+  }
+  if (!res.ok) throw new Error((await res.json()).message);
+  return res.status === 204 ? null : res.json();
+}
+
+// 로그인
+const { accessToken, user } = await api('/auth/login', { method: 'POST', body: { loginId: '1109', password: '...' } });
+localStorage.setItem('accessToken', accessToken);
+```
+
+사진은 `imageUrl`을 `<img src>`에 그대로 넣으면 됩니다. 사진 보기는 토큰이 필요 없습니다(파일 이름은 무작위 UUID). 사진 올리기(`POST /api/images`)는 토큰이 필요합니다.
+
+```jsx
+<img src={`http://localhost:8081${item.imageUrl}`} alt={item.name} />
+```
