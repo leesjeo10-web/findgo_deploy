@@ -1,0 +1,14 @@
+.DS_Store
+.gradle/
+build/
+.idea/
+*.iml
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+uploads/
+data/
+# 학생 초기 비밀번호가 들어 있는 일괄 등록 CSV (STUDENTS_CSV)
+students*.csv
