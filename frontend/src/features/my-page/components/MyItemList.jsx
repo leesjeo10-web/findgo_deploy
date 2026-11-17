@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import ItemImage from '../../items/components/ItemImage.jsx'
 import ItemBadges from '../../items/components/ItemBadges.jsx'
 import { formatDate } from '../../../shared/lib/date.js'
-export default function MyItemList({ items, listUrl }) {
+export default function MyItemList({ items, listUrl, renderActions }) {
   return (
     <ul className="my-item-list">
       {items.map((item) => (
@@ -36,13 +36,17 @@ export default function MyItemList({ items, listUrl }) {
               {item.location} · {formatDate(item.createdAt)} 등록
             </p>
           </div>
-          <Link
-            className="button button--outline button--small"
-            to={'/items/' + item.id + '/edit'}
-            state={{ listUrl }}
-          >
-            수정
-          </Link>
+          {renderActions ? (
+            renderActions(item)
+          ) : (
+            <Link
+              className="button button--outline button--small"
+              to={'/items/' + item.id + '/edit'}
+              state={{ listUrl }}
+            >
+              수정
+            </Link>
+          )}
         </li>
       ))}
     </ul>

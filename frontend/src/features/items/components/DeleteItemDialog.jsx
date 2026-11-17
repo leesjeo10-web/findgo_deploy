@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../../../shared/ui/ConfirmDialog.jsx'
 import { useToast } from '../../../shared/ui/Toast.jsx'
 import { deleteItem } from '../api/itemRepository.js'
-export default function DeleteItemDialog({ item, open, onClose }) {
+import { useAuth } from '../../auth/model/authContext.js'
+export default function DeleteItemDialog({ item, open, onClose, onDeleted }) {
+  const { user } = useAuth()
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(null)
   const pending = useRef(false),
@@ -17,7 +19,11 @@ export default function DeleteItemDialog({ item, open, onClose }) {
     try {
       await deleteItem(item.id)
       notify('삭제되었습니다.')
-      navigate('/mypage', { replace: true })
+      if (onDeleted) onDeleted()
+      else
+        navigate(user.role === 'ADMIN' ? '/admin/items' : '/mypage', {
+          replace: true,
+        })
     } catch (failure) {
       setError(failure)
     } finally {

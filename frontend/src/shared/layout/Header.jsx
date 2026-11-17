@@ -1,9 +1,11 @@
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../features/auth/model/authContext.js'
 import { logo } from '../lib/assets.js'
-import Button from '../ui/Button.jsx'
 import './layout.css'
 export default function Header({ search }) {
   const { pathname } = useLocation()
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
   return (
     <header className="site-header">
       <div className={'wrap site-nav' + (search ? ' site-nav--search' : '')}>
@@ -21,12 +23,28 @@ export default function Header({ search }) {
             물품 등록
           </NavLink>
           <NavLink to="/mypage">내 물품</NavLink>
+          {user?.role === 'ADMIN' && <NavLink to="/admin">선생님 관리</NavLink>}
         </nav>
         {search && <div className="header-search">{search}</div>}
         <div className="header-actions">
-          <Button to="/items/new" size="small">
-            물품 등록
-          </Button>
+          <span className="header-account">
+            <b>{user?.name}</b> {user?.role === 'ADMIN' ? '관리자' : '학생'}
+          </span>
+          <button
+            className="header-signout"
+            type="button"
+            onClick={async () => {
+              try {
+                await signOut()
+              } catch {
+                /* 로컬 세션은 signOut에서 먼저 정리한다. */
+              } finally {
+                navigate('/login', { replace: true })
+              }
+            }}
+          >
+            로그아웃
+          </button>
         </div>
       </div>
     </header>

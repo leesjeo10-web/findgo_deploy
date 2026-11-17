@@ -1,7 +1,23 @@
-/**
- * 로그인 화면. LoginForm과 로그인 필요·만료·가입 완료·이미 로그인한 상태 안내를 배치한다.
- * 구조 준비용 컴포넌트. 디자인과 기능은 아직 구현하지 않았다.
- */
+import { Navigate } from 'react-router-dom'
+import { useAuth } from '../model/authContext.js'
+import { nextAuthPath } from '../model/authModel.js'
+import LoadingState from '../../../shared/ui/LoadingState.jsx'
+import ErrorState from '../../../shared/ui/ErrorState.jsx'
+import AuthLayout from '../components/AuthLayout.jsx'
+import LoginForm from '../components/LoginForm.jsx'
 export default function LoginPage() {
-  return null
+  const { user, loading, error, refresh } = useAuth()
+  if (loading) return <LoadingState />
+  if (error) return <ErrorState error={error} onRetry={refresh} />
+  if (user) return <Navigate to={nextAuthPath(user)} replace />
+  return (
+    <AuthLayout
+      title="찾Go에 로그인해 주세요"
+      description="학교에서 지급받은 계정으로 시작해 보세요."
+      image="Magnifying glass tilted left"
+    >
+      <LoginForm />
+
+    </AuthLayout>
+  )
 }

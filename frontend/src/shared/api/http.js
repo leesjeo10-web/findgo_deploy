@@ -41,10 +41,11 @@ async function expireSession() {
 export async function apiRequest(path, {
   method = 'GET',
   body,
-  signal
+  signal,
+  authenticate = true
 } = {}) {
   if (!API_ORIGIN) throw new Error('서버 주소가 설정되지 않았어요. VITE_API_BASE_URL을 확인해주세요.');
-  const token = tokenReader();
+  const token = authenticate ? tokenReader() : '';
   const multipart = body instanceof FormData;
   let response;
   try {
@@ -68,7 +69,7 @@ export async function apiRequest(path, {
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     const error = new ApiError(response.status, data.message || `요청에 실패했어요. (${response.status})`);
-    if (response.status === 401) await expireSession();
+    if (response.status === 401 && authenticate && token === tokenReader()) await expireSession();
     throw error;
   }
   return response.status === 204 ? null : response.json();

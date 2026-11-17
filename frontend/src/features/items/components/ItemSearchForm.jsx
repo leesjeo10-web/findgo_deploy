@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-export default function ItemSearchForm({ keyword, onSearch }) {
+export default function ItemSearchForm({ keyword, onSearch, placeholder = '물품 이름, 장소로 검색', label = '물품 검색' }) {
   const [value, setValue] = useState(keyword)
   const [error, setError] = useState('')
   useEffect(() => {
@@ -21,7 +21,7 @@ export default function ItemSearchForm({ keyword, onSearch }) {
       }}
     >
       <label className="sr-only" htmlFor="item-search">
-        물품 검색
+        {label}
       </label>
       <input
         id="item-search"
@@ -31,7 +31,7 @@ export default function ItemSearchForm({ keyword, onSearch }) {
           setValue(event.target.value)
           setError('')
         }}
-        placeholder="물품 이름, 장소로 검색"
+        placeholder={placeholder}
         aria-invalid={!!error}
         aria-describedby={error ? 'search-error' : undefined}
         enterKeyHint="search"
