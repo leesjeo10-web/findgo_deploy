@@ -37,9 +37,9 @@ API 전체 목록과 프론트엔드 연결 방법은 [docs/API.md](docs/API.md)
 ./gradlew bootRun
 ```
 
-- API: `http://localhost:8081/api`
-- Swagger 화면: `http://localhost:8081/swagger-ui/index.html` (오른쪽 위 **Authorize**에 로그인으로 받은 `accessToken`을 넣으면 다른 API를 바로 호출할 수 있습니다)
-- OpenAPI 문서: `http://localhost:8081/v3/api-docs`
+- API: `http://localhost:8080/api`
+- Swagger 화면: `http://localhost:8080/swagger-ui/index.html` (오른쪽 위 **Authorize**에 로그인으로 받은 `accessToken`을 넣으면 다른 API를 바로 호출할 수 있습니다)
+- OpenAPI 문서: `http://localhost:8080/v3/api-docs`
 - 테이블은 JPA `ddl-auto=update`로 만들고 고칩니다.
 
 ### 환경 변수
@@ -53,7 +53,7 @@ API 전체 목록과 프론트엔드 연결 방법은 [docs/API.md](docs/API.md)
 | `DB_URL` | JDBC 주소 | 내장 H2 `./data/wine_finder` |
 | `DB_USERNAME` | DB 사용자 | `sa` (H2) |
 | `DB_PASSWORD` | DB 비밀번호 | 빈 값 (H2) |
-| `PORT` | 서버 포트 | `8081` |
+| `PORT` | 서버 포트. 같은 컴퓨터에서 다른 프로그램이 8080을 쓰고 있으면 `.env`에 `PORT=8081`처럼 바꿔서 실행 | `8080` |
 | `FRONTEND_ORIGINS` | 허용할 프론트 origin. 여러 개면 쉼표 구분 | `http://localhost:5173` |
 | `UPLOAD_DIR` | 사진 저장 폴더 | `./uploads` |
 
