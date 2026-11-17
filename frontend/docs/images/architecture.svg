@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="650" viewBox="0 0 1300 650" font-family="'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4B5563"/>
+    </marker>
+  </defs>
+
+  <rect width="1300" height="650" fill="#FFFFFF"/>
+
+  <text x="40" y="44" font-size="22" font-weight="700" fill="#111827">찾Go 전체 구조 · 연결 방향</text>
+
+  <!-- 사용자 브라우저 -->
+  <rect x="40" y="138" width="180" height="100" rx="12" fill="#F3F4F6" stroke="#9CA3AF" stroke-width="1.5"/>
+  <text x="130" y="181" text-anchor="middle" font-size="17" font-weight="700" fill="#111827">사용자</text>
+  <text x="130" y="206" text-anchor="middle" font-size="14" fill="#4B5563">웹 브라우저</text>
+
+  <!-- 프론트엔드 -->
+  <rect x="320" y="80" width="280" height="216" rx="12" fill="#EAF1FE" stroke="#3B6FD8" stroke-width="1.8"/>
+  <text x="460" y="114" text-anchor="middle" font-size="19" font-weight="700" fill="#1E3A8A">프론트엔드</text>
+  <text x="460" y="138" text-anchor="middle" font-size="14" fill="#4B5563">React (Vite)</text>
+  <line x1="345" y1="154" x2="575" y2="154" stroke="#BFD2F8" stroke-width="1.2"/>
+  <text x="460" y="182" text-anchor="middle" font-size="14.5" fill="#1F2937">화면 표시와 입력</text>
+  <text x="460" y="208" text-anchor="middle" font-size="14.5" fill="#1F2937">입력 형식 사전 검증</text>
+  <text x="460" y="234" text-anchor="middle" font-size="14.5" fill="#1F2937">로그인 토큰 보관</text>
+  <text x="460" y="260" text-anchor="middle" font-size="14.5" fill="#1F2937">로그인이 필요한 화면 막기</text>
+
+  <!-- 백엔드 -->
+  <rect x="840" y="80" width="340" height="216" rx="12" fill="#E8F6EE" stroke="#2E8B57" stroke-width="1.8"/>
+  <text x="1010" y="114" text-anchor="middle" font-size="19" font-weight="700" fill="#14532D">백엔드</text>
+  <text x="1010" y="138" text-anchor="middle" font-size="14" fill="#4B5563">Spring Boot (Java 21)</text>
+  <line x1="865" y1="154" x2="1155" y2="154" stroke="#B9E0C8" stroke-width="1.2"/>
+  <text x="1010" y="182" text-anchor="middle" font-size="14.5" fill="#1F2937">토큰 확인과 권한 확인</text>
+  <text x="1010" y="208" text-anchor="middle" font-size="14.5" fill="#1F2937">입력 최종 검증</text>
+  <text x="1010" y="234" text-anchor="middle" font-size="14.5" fill="#1F2937">사진 검사와 저장</text>
+  <text x="1010" y="260" text-anchor="middle" font-size="14.5" fill="#1F2937">글에 연결되지 않은 사진 정리</text>
+
+  <!-- 사용자 → 프론트엔드 -->
+  <line x1="220" y1="188" x2="316" y2="188" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <text x="268" y="176" text-anchor="middle" font-size="13.5" fill="#4B5563">이용</text>
+
+  <!-- 프론트엔드 → 백엔드 요청 -->
+  <text x="720" y="108" text-anchor="middle" font-size="15" font-weight="700" fill="#111827">요청 (/api)</text>
+  <text x="720" y="128" text-anchor="middle" font-size="13" fill="#4B5563">Authorization: Bearer 토큰</text>
+  <text x="720" y="144" text-anchor="middle" font-size="12" fill="#6B7280">(로그인이 필요한 요청)</text>
+  <line x1="600" y1="158" x2="836" y2="158" stroke="#4B5563" stroke-width="1.8" marker-end="url(#arrow)"/>
+
+  <!-- 백엔드 → 프론트엔드 응답 -->
+  <line x1="840" y1="222" x2="604" y2="222" stroke="#4B5563" stroke-width="1.8" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+  <text x="720" y="249" text-anchor="middle" font-size="15" font-weight="700" fill="#111827">JSON 응답</text>
+
+  <!-- 백엔드 ↔ MySQL -->
+  <line x1="920" y1="298" x2="920" y2="392" stroke="#4B5563" stroke-width="1.8" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="908" y="350" text-anchor="end" font-size="13.5" fill="#4B5563">조회·저장</text>
+
+  <!-- 백엔드 ↔ 사진 저장소 -->
+  <line x1="1160" y1="298" x2="1160" y2="392" stroke="#4B5563" stroke-width="1.8" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="1172" y="350" text-anchor="start" font-size="13.5" fill="#4B5563">파일 저장·읽기·삭제</text>
+
+  <!-- MySQL -->
+  <path d="M820,414 L820,528 A100,18 0 0 0 1020,528 L1020,414 Z" fill="#F1ECFB" stroke="#7A5AC8" stroke-width="1.8"/>
+  <ellipse cx="920" cy="414" rx="100" ry="18" fill="#F7F3FD" stroke="#7A5AC8" stroke-width="1.8"/>
+  <text x="920" y="472" text-anchor="middle" font-size="18" font-weight="700" fill="#4C1D95">MySQL</text>
+  <text x="920" y="497" text-anchor="middle" font-size="13.5" fill="#4B5563">회원 · 물품 · 사진 기록</text>
+
+  <!-- 사진 저장소 -->
+  <path d="M1060,414 L1060,528 A100,18 0 0 0 1260,528 L1260,414 Z" fill="#F1ECFB" stroke="#7A5AC8" stroke-width="1.8"/>
+  <ellipse cx="1160" cy="414" rx="100" ry="18" fill="#F7F3FD" stroke="#7A5AC8" stroke-width="1.8"/>
+  <text x="1160" y="472" text-anchor="middle" font-size="18" font-weight="700" fill="#4C1D95">사진 저장소</text>
+  <text x="1160" y="497" text-anchor="middle" font-size="13.5" fill="#4B5563">서버 uploads 폴더</text>
+
+  <!-- 검증과 보관 원칙 -->
+  <rect x="40" y="350" width="720" height="262" rx="12" fill="#FAFAFA" stroke="#D1D5DB" stroke-width="1.2" stroke-dasharray="6 4"/>
+  <text x="66" y="388" font-size="16" font-weight="700" fill="#111827">검증과 보관 원칙</text>
+  <text x="66" y="422" font-size="14.5" fill="#1F2937">① 입력 형식은 프론트엔드가 먼저 막고, 최종 검증은 백엔드가 합니다.</text>
+  <text x="66" y="453" font-size="14.5" fill="#1F2937">② 수정·삭제 권한은 백엔드가 작성자인지 확인해서 정합니다.</text>
+  <text x="66" y="484" font-size="14.5" fill="#1F2937">③ 비밀번호는 암호화해서 DB에 저장합니다.</text>
+  <text x="66" y="515" font-size="14.5" fill="#1F2937">④ DB 접속 정보와 토큰 비밀키는 환경 변수에 둡니다.</text>
+  <text x="66" y="546" font-size="14.5" fill="#1F2937">⑤ 작성자 연락처는 로그인한 사용자에게만 보냅니다. (비회원은 null)</text>
+  <text x="66" y="577" font-size="14.5" fill="#1F2937">⑥ 글에 연결되지 않은 사진은 3시간 뒤, 바뀐 사진은 바로 지웁니다.</text>
+</svg>
