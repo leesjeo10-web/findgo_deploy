@@ -1,47 +1,48 @@
-# Render 배포 체크리스트 (Spring Boot + MySQL)
+# Render 배포 체크리스트 (Spring Boot + Neon Postgres + 프론트)
 
-## 1. Render Web Service
-- Repository: `leesjeo10-web/wine-finder`
-- Branch: `main`
+## 0. DB 준비 (Neon)
+1. neon.tech 가입 → 프로젝트 생성 (Region: AWS Asia Pacific, Singapore 권장)
+2. Connect → 언어/형식에서 **Java (JDBC)** 선택
+3. `jdbc:postgresql://...` 주소, User, Password를 메모 (GitHub·채팅·스크린샷에 올리지 않기)
+   - JDBC 주소에 `?sslmode=require`가 붙어 있어야 합니다.
+   - 주소 안에 user/password가 들어 있다면 빼고, `DB_USERNAME`·`DB_PASSWORD`로 따로 넣습니다.
+
+## 1. 백엔드: Render Web Service
+- Repository: `webisnoteasy/finder`, Branch: `main`
 - Language: **Docker**
-- Root Directory: `findgo-backend`
-- Dockerfile Path: `./Dockerfile` (Root Directory 기준)
-- Region: Singapore
-- Compute: **Free ($0/month)** 를 직접 선택하고 최종 요금 표시를 확인하세요.
-- Java 21 이미지를 사용하는 Dockerfile은 GitHub에 포함되어 있습니다.
+- Root Directory: 비움 (저장소 맨 위에 `Dockerfile`이 있음)
+- Region: Singapore, Instance: **Free**
 
-## 2. MySQL
-Render 컨테이너의 `localhost`는 사용자의 MacBook이 아닙니다.
-Render에서 접근 가능한 외부 MySQL 호스트를 준비하고 네트워크 접근과 TLS 요구사항을 확인하세요.
-필요한 DB와 사용자 권한을 생성한 후 다음 환경 변수를 Render의 **Environment** 화면에서 설정합니다.
-실제 비밀번호를 GitHub, README, 스크린샷에 넣지 마세요.
+Environment 화면에 넣을 값:
 
 | Key | Value |
 | --- | --- |
-| `DB_URL` | `jdbc:mysql://HOST:PORT/wine_finder` (호스팅 제공자의 TLS 요구사항 반영) |
-| `DB_USERNAME` | DB 계정 |
-| `DB_PASSWORD` | DB 비밀번호 |
-| `FRONTEND_ORIGINS` | 프론트엔드 배포 origin, 예: `https://example.vercel.app` |
-| `JWT_SECRET` | 32바이트 이상 무작위 문자열 (필수, 없으면 서버가 시작되지 않음) |
-| `JWT_EXPIRES_SECONDS` | 토큰 유효 시간(초), 생략하면 3600 |
-| `ADMIN_INITIAL_PASSWORD` | 첫 배포 때 관리자(0000) 계정 비밀번호 (이미 있으면 무시) |
-| `UPLOAD_DIR` | 사진 저장 폴더 (영구 디스크를 쓸 때 그 경로) |
+| `DB_URL` | Neon의 `jdbc:postgresql://...?sslmode=require` |
+| `DB_USERNAME` | Neon User |
+| `DB_PASSWORD` | Neon Password |
+| `JWT_SECRET` | Render의 **Generate** 버튼으로 만든 무작위 값 (32바이트 이상, 필수) |
+| `ADMIN_INITIAL_PASSWORD` | 관리자(0000) 첫 비밀번호, 8자 이상 |
+| `FRONTEND_ORIGINS` | 프론트 배포 주소 (3단계 후 입력, 끝에 `/` 없이) |
 
-`PORT`는 Render가 자동 제공하므로 별도로 설정할 필요가 없습니다.
+`PORT`는 Render가 자동으로 넣어 주므로 설정하지 않습니다.
+배포 후 `https://<백엔드주소>/swagger-ui/index.html`이 열리면 성공입니다.
 
-## 3. 프론트 연결 주의
-- API 기본 경로는 `/api`, Swagger는 `/swagger-ui/index.html`입니다.
-- 로그인 응답의 `accessToken`을 `Authorization: Bearer {accessToken}` 헤더로 보냅니다. 쿠키를 쓰지 않으므로 Vercel과 Render처럼 서로 다른 사이트에서도 `FRONTEND_ORIGINS`만 맞으면 직접 호출할 수 있습니다.
-- 사진 보기는 토큰 없이 되므로 `imageUrl` 앞에 백엔드 주소를 붙여 `<img src>`로 표시합니다. 자세한 내용은 [API.md](API.md)를 보세요.
+## 2. 프론트: Render Static Site
+- Repository: `webisnoteasy/finder`, Branch: `main`
+- Root Directory: `frontend`
+- Build Command: `npm ci && npm run build`
+- Publish Directory: `dist`
+- Environment: `VITE_API_BASE_URL` = 백엔드 주소 (`/api` 없이, 끝에 `/` 없이)
+- Redirects/Rewrites: Source `/*` → Destination `/index.html`, Action **Rewrite**
+
+`VITE_API_BASE_URL`은 빌드할 때 들어가므로, 값을 바꾸면 프론트를 다시 배포해야 합니다.
+
+## 3. 서로 연결
+1. 프론트 주소(`https://...onrender.com`)를 백엔드 `FRONTEND_ORIGINS`에 넣고 저장 → 백엔드가 다시 배포됩니다.
+2. 프론트 주소로 접속 → `0000` / `ADMIN_INITIAL_PASSWORD`로 로그인 → 연락처 입력 → 학생 추가.
+3. 관리자 계정이 생겼으면 `ADMIN_INITIAL_PASSWORD`는 지워도 됩니다.
 
 ## 4. 무료 플랜 주의
-- Render Free 인스턴스는 유휴 시 중지되고 다시 시작할 때 지연될 수 있습니다.
-- 무료 인스턴스의 로컬 디스크는 영구 저장소가 아닙니다. 현재 `UPLOAD_DIR`에 저장하는 사진은 재배포/재시작 시 유실될 수 있으므로 실제 운영 전 객체 스토리지로 옮겨야 합니다.
-- DB가 외부 서비스라면 해당 서비스의 무료 제공 여부와 한도를 별도로 확인하세요.
-
-## 5. 배포 확인
-1. Render Logs에서 Docker 빌드와 Spring Boot 기동을 확인합니다.
-2. `https://<your-render-host>/v3/api-docs` 또는 `/swagger-ui/index.html`에 접속합니다.
-3. DB 접속 오류가 발생하면 `DB_URL`, 계정, TLS, 방화벽/허용 IP를 점검합니다.
-4. Swagger에서 관리자 `0000` 계정으로 로그인해 토큰을 받고, 학생 추가·물품 API를 테스트합니다.
-5. 첫 배포가 끝나 관리자 계정이 생겼으면 `ADMIN_INITIAL_PASSWORD`는 지워도 됩니다.
+- Render Free 서버는 15분 동안 요청이 없으면 잠들고, 첫 요청 때 깨어나는 데 시간이 걸립니다.
+- Render Free 서버의 디스크는 잠들거나 재배포될 때 지워집니다. 계정·글은 Neon에 남지만, `UPLOAD_DIR`에 저장한 **사진은 사라질 수 있습니다.** 오래 보관하려면 객체 저장소로 옮겨야 합니다.
+- 학생 일괄 등록 CSV(`STUDENTS_CSV`)는 로컬용입니다. 배포 서버에서는 선생님 화면에서 학생을 추가합니다.
